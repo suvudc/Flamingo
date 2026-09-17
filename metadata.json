@@ -1,0 +1,6 @@
+{
+  "name": "Flamingo",
+  "description": "Local music player for Android styled after Apple Music with rich lyric support and playback",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

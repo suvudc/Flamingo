@@ -182,8 +182,8 @@ class MainActivity : BaseActivity() {
         ExperimentalHazeMaterialsApi::class, ExperimentalSharedTransitionApi::class
     )
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
         installSplashScreen()
+        super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             YosMusicTheme {
