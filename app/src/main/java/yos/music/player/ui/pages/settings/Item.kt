@@ -26,7 +26,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.alexzhirkevich.cupertino.CupertinoSwitch
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import yos.music.player.ui.theme.withNight
 import yos.music.player.R
 import yos.music.player.code.utils.others.Vibrator
 import yos.music.player.ui.widgets.basic.YosWrapper
@@ -149,19 +165,12 @@ fun SwitchItem(
         }
         onClick?.invoke()
     }) {
-        /*Switch(checkedLambda = checkedLambda, onValueChange = {
+        Switch(checkedLambda = checkedLambda, onValueChange = {
             if (onClick != null) {
                 Vibrator.click(context)
             }
             onClick?.invoke()
-        })*/
-
-        CupertinoSwitch(checked = checkedLambda(), onCheckedChange = {
-            if (onClick != null){
-                Vibrator.click(context)
-            }
-            onClick?.invoke()
-        }, modifier = Modifier.height(25.dp))
+        }, modifier = Modifier.height(28.dp))
     }
 }
 
@@ -236,7 +245,6 @@ fun DefaultItem(
     }
 }
 
-/*
 @Composable
 fun Switch(
     checkedLambda: () -> Boolean,
@@ -290,4 +298,4 @@ fun Switch(
                 .background(animatedThumbColor.value)
         )
     }
-}*/
+}

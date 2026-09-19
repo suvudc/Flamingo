@@ -27,10 +27,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.SecureFlagPolicy
-import io.github.alexzhirkevich.cupertino.CupertinoSlider
-import io.github.alexzhirkevich.cupertino.theme.CupertinoTheme
 import kotlinx.coroutines.launch
 import yos.music.player.R
 import yos.music.player.code.utils.others.Vibrator
@@ -69,32 +69,34 @@ fun ScreenCornerSetDialog(modifier: Modifier = Modifier, onDismiss: () -> Unit) 
         bottomSheetState = bottomSheetState,
         content = {
             val interactionSource = remember { MutableInteractionSource() }
-            CupertinoTheme {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(
-                            color = (Color.LightGray withNight Color.DarkGray).copy(
-                                alpha = 0.15f
-                            ),
-                            shape = YosRoundedCornerShape(14.dp)
-                        )
-                        .padding(vertical = 15.dp, horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = (Color.LightGray withNight Color.DarkGray).copy(
+                            alpha = 0.15f
+                        ),
+                        shape = YosRoundedCornerShape(14.dp)
+                    )
+                    .padding(vertical = 15.dp, horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
 
-                    Icon(painter = painterResource(id = R.drawable.ic_tips_minus), contentDescription = null, modifier = Modifier
-                        .size(12.dp)
-                        .alpha(0.45f)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {
-                                if (cornerValue.floatValue <= 0f) return@clickable
-                                Vibrator.click(context)
-                                cornerValue.floatValue -= 1f
-                            }))
-                    CupertinoSlider(value = cornerValue.floatValue, onValueChange = {
+                Icon(painter = painterResource(id = R.drawable.ic_tips_minus), contentDescription = null, modifier = Modifier
+                    .size(12.dp)
+                    .alpha(0.45f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            if (cornerValue.floatValue <= 0f) return@clickable
+                            Vibrator.click(context)
+                            cornerValue.floatValue -= 1f
+                        }))
+                Slider(
+                    value = cornerValue.floatValue,
+                    onValueChange = {
                         cornerValue.floatValue = it
-                    }, thumb = {
+                    },
+                    thumb = {
                         Spacer(
                             Modifier
                                 .size(23.dp)
@@ -107,26 +109,33 @@ fun ScreenCornerSetDialog(modifier: Modifier = Modifier, onDismiss: () -> Unit) 
                                 )
                                 .background(Color.White, CircleShape)
                         )
-                    }, interactionSource = interactionSource, modifier = Modifier
+                    },
+                    interactionSource = interactionSource,
+                    modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .padding(end = 8.dp, start = 12.dp),
-                        valueRange = 0f..130f)
-                    Icon(painter = painterResource(id = R.drawable.ic_tips_plus), contentDescription = null, modifier = Modifier
-                        .padding(end = 2.dp)
-                        .size(14.dp)
-                        .alpha(0.45f)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {
-                                if (cornerValue.floatValue >= 130f) return@clickable
-                                Vibrator.click(context)
-                                cornerValue.floatValue += 1f
-                            }))
-                }
-                DialogContent(text = stringResource(id = R.string.tip_corner_desc), modifier = Modifier.padding(top = 6.dp))
+                    valueRange = 0f..130f,
+                    colors = SliderDefaults.colors(
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = (Color.LightGray withNight Color.DarkGray).copy(alpha = 0.4f),
+                        thumbColor = Color.White
+                    )
+                )
+                Icon(painter = painterResource(id = R.drawable.ic_tips_plus), contentDescription = null, modifier = Modifier
+                    .padding(end = 2.dp)
+                    .size(14.dp)
+                    .alpha(0.45f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            if (cornerValue.floatValue >= 130f) return@clickable
+                            Vibrator.click(context)
+                            cornerValue.floatValue += 1f
+                        }))
             }
+            DialogContent(text = stringResource(id = R.string.tip_corner_desc), modifier = Modifier.padding(top = 6.dp))
         },
         positiveContent = stringResource(id = R.string.tip_corner_save),
         onPositive = {

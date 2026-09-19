@@ -19,8 +19,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import io.github.alexzhirkevich.cupertino.icons.CupertinoIcons
-import io.github.alexzhirkevich.cupertino.icons.outlined.PersonCropCircle
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import yos.music.player.R
 import yos.music.player.code.utils.others.Vibrator
 import yos.music.player.data.NormalSaver
@@ -56,7 +56,7 @@ fun ProfileButton(onClick: () -> Unit) {
 
     if (profilePictureUri.value.isEmpty()) {
         Icon(
-            imageVector = CupertinoIcons.Default.PersonCropCircle,
+            imageVector = Icons.Default.AccountCircle,
             contentDescription = stringResource(R.string.profile_picture),
             modifier = modifier,
             tint = MaterialTheme.colorScheme.primary

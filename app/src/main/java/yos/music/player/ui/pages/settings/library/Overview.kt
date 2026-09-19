@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import io.github.alexzhirkevich.cupertino.CupertinoSwitch
+import yos.music.player.ui.pages.settings.Switch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import yos.music.player.R
@@ -155,7 +155,7 @@ private fun LazyItemScope.FolderItem(folder: Folder, itemClick: () -> Unit) {
             val scope = rememberCoroutineScope()
             val context = LocalContext.current
 
-            /*Switch(checkedLambda = { !hideFolders.any { it == folder.path } }, onValueChange = {
+            Switch(checkedLambda = { !hideFolders.any { it == folder.path } }, onValueChange = {
                 scope.launch(Dispatchers.IO) {
                     Vibrator.click(context)
                     if (it) {
@@ -164,18 +164,7 @@ private fun LazyItemScope.FolderItem(folder: Folder, itemClick: () -> Unit) {
                         MusicLibrary.hideFolder(folder)
                     }
                 }
-            }, switchHeight = 24.dp, switchWidth = 46.dp)*/
-
-            CupertinoSwitch(checked = !hideFolders.any { it == folder.path }, onCheckedChange = {
-                scope.launch(Dispatchers.IO) {
-                    Vibrator.click(context)
-                    if (it) {
-                        MusicLibrary.unHideFolder(folder)
-                    } else {
-                        MusicLibrary.hideFolder(folder)
-                    }
-                }
-            })
+            }, switchHeight = 24.dp, switchWidth = 46.dp)
         }
 
         Icon(
