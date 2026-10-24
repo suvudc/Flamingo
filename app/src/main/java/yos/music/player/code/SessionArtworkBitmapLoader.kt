@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
+import android.util.Log
+import android.util.Size
 import android.os.Build
 import androidx.media3.common.util.BitmapLoader
 import androidx.media3.common.util.UnstableApi
@@ -35,12 +37,21 @@ internal class SessionArtworkBitmapLoader(context: Context) : BitmapLoader {
     override fun decodeBitmap(data: ByteArray): ListenableFuture<Bitmap> = load(data)
 
     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> =
-        load(thumbnailUri(uri, Build.VERSION.SDK_INT))
+        load(thumbnailUri(uri, Build.VERSION.SDK_INT), uri)
 
-    private fun load(data: Any): ListenableFuture<Bitmap> {
+    private fun load(data: Any, originalUri: Uri? = null): ListenableFuture<Bitmap> {
         val future = SettableFuture.create<Bitmap>()
         val job = scope.launch {
             try {
+                val directThumbnail = if (Build.VERSION.SDK_INT >= 29 && originalUri != null && originalUri.scheme == "content" && originalUri.authority == "media") {
+                    runCatching { context.contentResolver.loadThumbnail(data as Uri, Size(512, 512), null) }
+                        .onFailure { Log.w("FlamingoArtwork", "MediaStore thumbnail unavailable for $data", it) }
+                        .getOrNull()
+                } else null
+                if (directThumbnail != null) {
+                    future.set(directThumbnail)
+                    return@launch
+                }
                 val result = context.imageLoader.execute(
                     ImageRequest.Builder(context)
                         .data(data)
@@ -57,6 +68,7 @@ internal class SessionArtworkBitmapLoader(context: Context) : BitmapLoader {
                 throw cancelled
             } catch (exception: Exception) {
                 // A failed future lets Media3 omit the picture; never reuse another track's art.
+                Log.e("FlamingoArtwork", "Failed to load artwork: $data", exception)
                 future.setException(exception)
             }
         }
