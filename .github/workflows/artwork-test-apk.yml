@@ -32,7 +32,7 @@ jobs:
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
-          name: Flamingo-artwork-test-apk
+          name: Flamingo-artwork-diagnostics-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
       - name: Upload test reports

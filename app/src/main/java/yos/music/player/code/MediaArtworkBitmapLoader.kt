@@ -29,6 +29,8 @@ import kotlin.math.roundToInt
 @OptIn(UnstableApi::class)
 class MediaArtworkBitmapLoader(context: Context) : BitmapLoader, Closeable {
     private val appContext = context.applicationContext
+    private val diagnosticsEnabled =
+        appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun supportsMimeType(mimeType: String): Boolean = mimeType.startsWith("image/")
@@ -38,6 +40,10 @@ class MediaArtworkBitmapLoader(context: Context) : BitmapLoader, Closeable {
     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> = load(uri)
 
     private fun load(data: Any): ListenableFuture<Bitmap> {
+        if (diagnosticsEnabled) ArtworkDiagnostics.record(
+            if (data is ByteArray) "Request: embedded image (${data.size} bytes)"
+            else "Request: ${(data as? Uri)?.scheme ?: "unknown"} URI"
+        )
         val future = SettableFuture.create<Bitmap>()
         val job = scope.launch {
             try {
@@ -61,6 +67,9 @@ class MediaArtworkBitmapLoader(context: Context) : BitmapLoader, Closeable {
                             (height * scale).roundToInt().coerceAtLeast(1),
                             Bitmap.Config.ARGB_8888
                         )
+                        if (diagnosticsEnabled) ArtworkDiagnostics.record(
+                            "Loaded: ${bitmap.width} x ${bitmap.height}, ${bitmap.config}"
+                        )
                         future.set(bitmap)
                     }
                     is ErrorResult -> throw result.throwable
@@ -69,6 +78,9 @@ class MediaArtworkBitmapLoader(context: Context) : BitmapLoader, Closeable {
                 future.cancel(false)
                 throw cancelled
             } catch (error: Exception) {
+                if (diagnosticsEnabled) ArtworkDiagnostics.record(
+                    "FAILED: ${error.javaClass.simpleName}: ${error.message?.take(160)}"
+                )
                 Log.w("FlamingoArtwork", "Unable to load media-session artwork", error)
                 future.setException(error)
             }

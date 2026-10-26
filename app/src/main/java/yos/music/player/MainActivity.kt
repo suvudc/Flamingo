@@ -184,6 +184,24 @@ class MainActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            window.decorView.post {
+                val reportButton = android.widget.Button(this).apply {
+                    text = "Artwork report"
+                    setOnClickListener {
+                        startActivity(android.content.Intent().setClassName(
+                            this@MainActivity,
+                            "yos.music.player.ArtworkDiagnosticsActivity"
+                        ))
+                    }
+                }
+                addContentView(reportButton, android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.TOP or android.view.Gravity.END
+                ).apply { topMargin = (48 * resources.displayMetrics.density).toInt() })
+            }
+        }
         enableEdgeToEdge()
         setContent {
             YosMusicTheme {

@@ -57,8 +57,8 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
-            applicationIdSuffix ".artworktest"
-            versionNameSuffix "-artwork-test"
+            applicationIdSuffix ".artworkdiagnostics"
+            versionNameSuffix "-artwork-diagnostics"
         }
         release {
             minifyEnabled true
