@@ -305,7 +305,7 @@ private fun BaseTitleGrid(
             state = state,
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState)
+                .then(if (SettingsLibrary.BarBlurEffect) Modifier.haze(hazeState) else Modifier)
                 .then(if (stickyContent == null) Modifier.overScrollVertical() else Modifier),
             flingBehavior = rememberOverscrollFlingBehavior { state },
             columns = GridCells.Fixed(columns()),
@@ -401,7 +401,7 @@ private fun BaseTitleList(
             state = state,
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState)
+                .then(if (SettingsLibrary.BarBlurEffect) Modifier.haze(hazeState) else Modifier)
                 .then(if (stickyContent == null) Modifier.overScrollVertical() else Modifier),
             flingBehavior = rememberOverscrollFlingBehavior { state },
             contentPadding = PaddingValues(top = 54.dp)

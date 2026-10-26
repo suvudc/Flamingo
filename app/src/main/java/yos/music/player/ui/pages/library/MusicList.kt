@@ -104,6 +104,9 @@ import yos.music.player.ui.toUI
 import yos.music.player.ui.widgets.basic.ImageQuality
 import yos.music.player.ui.widgets.basic.ShadowImageWithCache
 
+// Layout coordinates are not UI state: scrolling must not recompose every song row.
+private class SongRowAnchor { var position = Offset.Zero }
+
 private val SongContextMenuEstimatedHeight = 278.dp
 
 @Composable
@@ -135,9 +138,7 @@ fun /*LazyItemScope.*/MusicList(
     var swipeOffsetPx by remember(music.uri) {
         mutableFloatStateOf(0f)
     }
-    var rowRootPosition by remember(music.uri) {
-        mutableStateOf(Offset.Zero)
-    }
+    val rowAnchor = remember(music.uri) { SongRowAnchor() }
     var resetAnimationJob by remember(music.uri) {
         mutableStateOf<Job?>(null)
     }
@@ -224,7 +225,7 @@ fun /*LazyItemScope.*/MusicList(
             .onGloballyPositioned {
                 rowWidthPx = it.size.width.toFloat()
                 rowHeightPx = it.size.height.toFloat()
-                rowRootPosition = it.localToRoot(Offset.Zero)
+                rowAnchor.position = it.localToRoot(Offset.Zero)
             }
     ) {
         if (swipeEnabled) {
@@ -281,7 +282,7 @@ fun /*LazyItemScope.*/MusicList(
         SongContextMenu(
             music = music,
             visible = contextMenuOpen.value,
-            anchorPosition = rowRootPosition,
+            anchorPosition = rowAnchor.position,
             visibleState = contextMenuOpen,
             navController = navController,
         )

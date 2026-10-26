@@ -31,6 +31,8 @@ import androidx.compose.animation.core.EaseOutQuart
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -90,7 +92,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
@@ -398,8 +400,8 @@ class MainActivity : BaseActivity() {
                                     }
 
                                     YosWrapper {
-                                        val animateSpeed = 340
-                                        val animationSpec: FiniteAnimationSpec<IntSize> =
+                                        val animateSpeed = 280
+                                        val animationSpec: FiniteAnimationSpec<IntOffset> =
                                             tween(
                                                 durationMillis = animateSpeed,
                                                 easing = EaseOutQuart
@@ -421,40 +423,16 @@ class MainActivity : BaseActivity() {
                                             navController = navController,
                                             startDestination = UI.HomePage,
                                             enterTransition = {
-                                                fadeIn(animationSpec = fadeAnimationSpec) + expandHorizontally(
-                                                    animationSpec = animationSpec,
-                                                    clip = false,
-                                                    expandFrom = Alignment.Start
-                                                ) {
-                                                    -it / 2
-                                                }
+                                                fadeIn(animationSpec = fadeAnimationSpec) + slideInHorizontally(animationSpec) { it / 8 }
                                             },
                                             exitTransition = {
-                                                fadeOut(animationSpec = fadeAnimationSpec) + shrinkHorizontally(
-                                                    animationSpec = animationSpec,
-                                                    clip = false,
-                                                    shrinkTowards = Alignment.End
-                                                ) {
-                                                    it / 2
-                                                }
+                                                fadeOut(animationSpec = fadeAnimationSpec) + slideOutHorizontally(animationSpec) { -it / 8 }
                                             },
                                             popEnterTransition = {
-                                                fadeIn(animationSpec = fadeAnimationSpec) + expandHorizontally(
-                                                    animationSpec = animationSpec,
-                                                    clip = false,
-                                                    expandFrom = Alignment.End
-                                                ) {
-                                                    it / 2
-                                                }
+                                                fadeIn(animationSpec = fadeAnimationSpec) + slideInHorizontally(animationSpec) { -it / 8 }
                                             },
                                             popExitTransition = {
-                                                fadeOut(animationSpec = fadeAnimationSpec) + shrinkHorizontally(
-                                                    animationSpec = animationSpec,
-                                                    clip = false,
-                                                    shrinkTowards = Alignment.Start
-                                                ) {
-                                                    -it / 2
-                                                }
+                                                fadeOut(animationSpec = fadeAnimationSpec) + slideOutHorizontally(animationSpec) { it / 8 }
                                             }) {
 
                                             composable(UI.HomePage) {

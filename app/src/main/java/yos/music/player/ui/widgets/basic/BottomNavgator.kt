@@ -13,12 +13,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -50,19 +54,20 @@ fun BottomNavigator(
     val foreground = if (dark) Color.White else Color(0xFF15151B)
     val label = nowLabel()
     val selectedIndex = items.indexOfFirst { it.label == label }.coerceAtLeast(0)
-    val glass = if (Build.VERSION.SDK_INT >= 31 && hazeState != null) {
-        Modifier.hazeChild(hazeState, HazeStyle(
+    val glassStyle = remember(base, dark) { HazeStyle(
             backgroundColor = base,
             tint = base.copy(alpha = if (dark) .28f else .38f),
-            blurRadius = 20.dp,
-            noiseFactor = .025f
-        ))
+            blurRadius = 12.dp,
+            noiseFactor = 0f
+        ) }
+    val glass = if (Build.VERSION.SDK_INT >= 31 && hazeState != null) {
+        Modifier.hazeChild(hazeState, glassStyle)
     } else Modifier.background(base.copy(alpha = .94f))
 
     Box(modifier.fillMaxWidth().navigationBarsHeight(74.dp), contentAlignment = Alignment.TopCenter) {
         Box(Modifier.padding(horizontal = 16.dp, vertical = 2.dp).widthIn(max = 440.dp)
             .fillMaxWidth().height(64.dp)
-            .shadow(12.dp, CircleShape, clip = false)
+            .shadow(6.dp, CircleShape, clip = false)
             .clip(CircleShape)
             .then(glass)
             .background(Brush.verticalGradient(listOf(
@@ -79,10 +84,12 @@ fun BottomNavigator(
                 val segmentWidth = maxWidth / items.size
                 val selectionOffset = animateDpAsState(
                     targetValue = segmentWidth * selectedIndex,
-                    animationSpec = spring(dampingRatio = .85f, stiffness = 450f),
+                    animationSpec = spring(dampingRatio = 1f, stiffness = 380f),
                     label = "Glass tab position"
                 )
-                Box(Modifier.offset(x = selectionOffset.value).width(segmentWidth).fillMaxHeight()
+                val direction = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1 else 1
+                Box(Modifier.width(segmentWidth).fillMaxHeight()
+                    .graphicsLayer { translationX = selectionOffset.value.toPx() * direction }
                     .clip(CircleShape)
                     .background(Brush.verticalGradient(listOf(
                         foreground.copy(alpha = if (dark) .22f else .12f),
