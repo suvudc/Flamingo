@@ -77,6 +77,17 @@ android {
                 }
             }
         }
+        optimized {
+            initWith release
+            // A locally installable build with release optimizations, independent
+            // of the diagnostic app and the production signing configuration.
+            applicationIdSuffix ".optimized"
+            versionNameSuffix "-optimized"
+            signingConfig signingConfigs.debug
+            debuggable false
+            matchingFallbacks = ['release']
+            proguardFiles 'optimized-rules.pro'
+        }
     }
 
     compileOptions {

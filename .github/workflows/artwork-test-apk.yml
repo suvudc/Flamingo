@@ -29,11 +29,19 @@ jobs:
           -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
       - name: Build APK and compile artwork tests
         run: bash gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest --stacktrace
+      - name: Build optimized APK
+        run: bash gradlew :app:assembleOptimized --stacktrace
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
           name: Flamingo-artwork-fix-3-apk
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - name: Upload optimized APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Flamingo-optimized-apk
+          path: app/build/outputs/apk/optimized/*.apk
           if-no-files-found: error
       - name: Upload test reports
         if: always()
