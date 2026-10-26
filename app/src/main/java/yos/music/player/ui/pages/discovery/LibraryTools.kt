@@ -53,7 +53,8 @@ fun LibraryTools(nav: NavController) {
     }
     val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) runOperation {
-            val json = DiscoveryActions.backup()
+            val json = withContext(Dispatchers.Default) { DiscoveryActions.backup() }
+            require(json.toByteArray(Charsets.UTF_8).size <= 10 * 1024 * 1024) { "This backup exceeds 10 MB. Export listening stats separately from Settings, then back up your playlists." }
             withContext(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json) } ?: error("Cannot write backup") }
             "Backup exported. Your audio files are not copied."
         }
@@ -127,8 +128,7 @@ fun LocalTrackEditor(nav: NavController, id: String) {
         withContext(Dispatchers.IO) {
             context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
                 val metadata = TagLib.getMetadata(descriptor.dup().detachFd(), false) ?: error("This audio format cannot be edited.")
-                val properties = HashMap(metadata.propertyMap)
-                values.forEach { (key, value) -> if (value.isBlank()) properties.remove(key) else properties[key] = arrayOf(value) }
+                val properties = DiscoveryEngine.mergeTags(metadata.propertyMap, values)
                 check(TagLib.savePropertyMap(descriptor.dup().detachFd(), properties)) { "The audio format rejected these changes." }
             } ?: error("Cannot open audio file for writing.")
             val path = AudioMetadataUtils.resolveLocalAudioFilePath(context, song.uri)
@@ -144,11 +144,11 @@ fun LocalTrackEditor(nav: NavController, id: String) {
     val grantWrite = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK && pendingUri != null) scope.launch {
             saving = true; message = runCatching { save(pendingUri!!, pendingValues) }.getOrElse { it.message ?: "Could not save changes." }; saving = false
-        } else { saving = false; message = "Write permission was not granted." }
+        } else { saving = false; message = if (result.resultCode == android.app.Activity.RESULT_OK) "Write access granted. Tap Save again to apply your changes." else "Write permission was not granted." }
     }
     LaunchedEffect(id) {
         message = runCatching {
-            originalLyrics = withContext(Dispatchers.IO) { context.contentResolver.openFileDescriptor(editableMediaUri(context, song), "r")?.use { TagLib.getMetadata(it.dup().detachFd(), false)?.propertyMap?.get("LYRICS")?.firstOrNull().orEmpty() }.orEmpty() }
+            originalLyrics = withContext(Dispatchers.IO) { context.contentResolver.openFileDescriptor(editableMediaUri(context, song), "r")?.use { TagLib.getMetadata(it.dup().detachFd(), false)?.propertyMap?.let { properties -> DiscoveryEngine.embeddedLyrics(properties) }.orEmpty() }.orEmpty() }
             lyrics = originalLyrics; ""
         }.getOrElse { "Metadata is shown below. Embedded lyrics could not be read: ${it.message}" }
         loaded = true
@@ -165,7 +165,7 @@ fun LocalTrackEditor(nav: NavController, id: String) {
             DiscoveryField("Title", title) { title = it }; DiscoveryField("Artist", artist) { artist = it }; DiscoveryField("Album", album) { album = it }
             DiscoveryField("Album artist", albumArtist) { albumArtist = it }; DiscoveryField("Genre", genre) { genre = it }; DiscoveryField("Year", year) { year = it }
             Text("Embedded Lyrics", fontWeight = FontWeight.Bold)
-            OutlinedTextField(lyrics, { lyrics = it }, Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 380.dp), label = { Text("Plain text or timestamped LRC") })
+            OutlinedTextField(lyrics, { lyrics = it }, Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 380.dp), label = { Text("Timestamped LRC or embedded lyric text") }, enabled = loaded && !saving)
             Row { TextButton({ importLyrics.launch(arrayOf("text/*", "application/octet-stream")) }) { Text("Import LRC") }; TextButton({ exportLyrics.launch("${title.ifBlank { "Lyrics" }.replace(Regex("[\\\\/:*?\"<>|]"), "_")}.lrc") }) { Text("Export LRC") } }
             if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.primary)
             if (saving || !loaded) LinearProgressIndicator(Modifier.fillMaxWidth())

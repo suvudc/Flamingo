@@ -73,4 +73,29 @@ class DiscoveryEngineTest {
         assertEquals("/Music/B", DiscoveryEngine.commonFolderRoot(listOf("/Music/B")))
         assertTrue(DiscoveryEngine.folderChildren(listOf("/Music/B"), "/Music/B").isEmpty())
     }
+    @Test fun tagEditsPreserveUntouchedPropertiesAndReadLegacyLyrics() {
+        val original = hashMapOf("TITLE" to arrayOf("Old"), "ALBUM" to arrayOf("Album"), "UNSYNCEDLYRICS" to arrayOf("[00:01]Legacy"), "TRACKNUMBER" to arrayOf("7"))
+        assertEquals("[00:01]Legacy", DiscoveryEngine.embeddedLyrics(original))
+        val edited = DiscoveryEngine.mergeTags(original, mapOf("TITLE" to "New"))
+        assertArrayEquals(arrayOf("Album"), edited["ALBUM"])
+        assertArrayEquals(arrayOf("7"), edited["TRACKNUMBER"])
+        assertArrayEquals(arrayOf("Old"), original["TITLE"])
+        assertEquals("[00:01]Legacy", DiscoveryEngine.embeddedLyrics(edited))
+        assertEquals("", DiscoveryEngine.embeddedLyrics(DiscoveryEngine.mergeTags(original, mapOf("LYRICS" to ""))))
+    }
+    @Test fun rankingIsStableAcrossManySeedsAndLargeLibraries() {
+        val songs = tracks(2000)
+        val history = songs.take(30).associate { it.id to TrackEngagement(3, 180_000, 1) }
+        repeat(12) { seed ->
+            val result = DiscoveryEngine.generate(songs, history, setOf("song-1"), seed.toLong())
+            assertEquals(50, result.first().trackIds.size)
+            assertEquals(50, result.first().trackIds.distinct().size)
+        }
+    }
+    @Test fun mixLengthIsConfigurableAndBoundedByLibrary() {
+        val mixes = DiscoveryEngine.generate(tracks(), emptyMap(), emptySet(), 1, maximumTracks = 20)
+        assertEquals(20, mixes.first().trackIds.size)
+        assertEquals(10, DiscoveryEngine.generate(tracks(), emptyMap(), emptySet(), 1, maximumTracks = -1).first().trackIds.size)
+        assertEquals(3, DiscoveryEngine.generate(tracks(3), emptyMap(), emptySet(), 1, maximumTracks = 100).first().trackIds.size)
+    }
 }

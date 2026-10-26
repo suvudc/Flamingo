@@ -61,7 +61,7 @@ object DiscoveryActions {
     }
 
     fun backup(): String = JsonObject().apply {
-        addProperty("format", "Music local library backup"); addProperty("version", 1)
+        addProperty("format", "Music local library backup"); addProperty("version", 1); addProperty("mixSize", DiscoveryPreferences.mixSize)
         add("playlists", JsonArray().apply { PlayListLibrary.playList.forEach { playlist -> add(JsonObject().apply {
             addProperty("name", playlist.name); addProperty("description", playlist.description); addProperty("pinned", playlist.isPinned)
             add("songs", JsonArray().apply { playlist.songDataList.forEach { add(it.toString()) } })
@@ -84,7 +84,7 @@ object DiscoveryActions {
         require(playlists.size <= 1000 && playlists.all { it.second.size <= 100_000 }) { "Too many playlist entries." }
         val favorites = root.getAsJsonArray("favorites")?.map { it.asString }.orEmpty()
         val rules = root.get("smartRules")?.asString?.let { com.google.gson.Gson().fromJson(it, Array<SmartMixRule>::class.java).toList() }.orEmpty()
-        require(rules.all { it.id.isNotBlank() && it.name.isNotBlank() && it.limit in 1..500 && it.fromYear in 0..9999 && it.toYear in 0..9999 }) { "Invalid smart playlist rules." }
+        require(rules.size <= 1000 && rules.all { rule -> listOf<String?>(rule.id, rule.name, rule.artist, rule.genre, rule.order).all { it != null } && rule.id.isNotBlank() && rule.name.isNotBlank() && rule.limit in 1..500 && rule.fromYear in 0..9999 && rule.toYear in 0..9999 && (rule.fromYear == 0 || rule.toYear == 0 || rule.fromYear <= rule.toYear) }) { "Invalid smart playlist rules." }
         val stats = root.getAsJsonArray("stats")?.also { array -> array.forEach { e ->
             val event = e.asJsonObject
             require((event.get("listenedMs")?.asLong ?: 0L) >= 0 && (event.get("timestampMs")?.asLong ?: 0L) >= 0) { "Invalid listening event." }
@@ -92,6 +92,8 @@ object DiscoveryActions {
         val homeOrder = root.get("homeOrder")?.asString?.split(',')?.filter { it in DiscoveryPreferences.sectionTitles }?.joinToString(",")
         val hiddenSections = root.get("hiddenSections")?.asString?.split(',')?.filter { it in DiscoveryPreferences.sectionTitles }?.joinToString(",")
         val excluded = root.get("excludedMixSongs")?.asString?.let { com.google.gson.Gson().fromJson(it, Array<String>::class.java).toList() }.orEmpty()
+        val mixSize = root.get("mixSize")?.asInt ?: 50
+        require(mixSize in 10..100) { "Invalid mix size." }
         var created = 0; var missing = 0
         playlists.forEach { (name, ids, data) ->
             val songs = ids.mapNotNull { id -> index[id].also { if (it == null) missing++ } }
@@ -108,6 +110,7 @@ object DiscoveryActions {
         homeOrder?.let { DiscoveryPreferences.sectionOrder = it }
         hiddenSections?.let { DiscoveryPreferences.hiddenSections = it }
         DiscoveryPreferences.excludedJson = com.google.gson.Gson().toJson(excluded.filter { it in index })
+        DiscoveryPreferences.mixSize = mixSize
         DiscoveryPreferences.mixRevision++
         if (stats != null) ListenStatsManager.importEventsFromJson(stats.toString(), false)
         return "Restored $created playlists, favorites and Home preferences. $missing unavailable song entries were skipped."

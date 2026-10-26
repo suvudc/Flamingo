@@ -11,6 +11,7 @@ data class DiscoveryTrack(
     val id: String, val title: String, val artist: String, val album: String,
     val genre: String = "", val year: Int = 0, val addedAt: Long = 0, val duration: Long = 0,
 )
+data class DiscoverySearchEntry(val id: String, val title: String, val artist: String, val all: String)
 data class TrackEngagement(val plays: Int = 0, val listenedMs: Long = 0, val lastPlayed: Long = 0)
 data class DiscoveryMix(val id: String, val title: String, val subtitle: String, val trackIds: List<String>)
 data class SmartMixRule(
@@ -26,29 +27,30 @@ object DiscoveryEngine {
 
     fun generate(
         input: List<DiscoveryTrack>, stats: Map<String, TrackEngagement>, favorites: Set<String>,
-        seed: Long, excluded: Set<String> = emptySet(),
+        seed: Long, excluded: Set<String> = emptySet(), maximumTracks: Int = 50,
     ): List<DiscoveryMix> {
         val songs = input.distinctBy { it.id }.filter { it.id.isNotBlank() && it.id !in excluded }.sortedBy { it.id }
         if (songs.isEmpty()) return emptyList()
+        val limit = maximumTracks.coerceIn(10, 100)
         val artistAffinity = songs.groupBy { normalize(it.artist) }.mapValues { (_, items) ->
             items.sumOf { sqrt((stats[it.id]?.plays ?: 0).toDouble()) + if (it.id in favorites) 2.0 else 0.0 }
         }
         fun select(list: List<DiscoveryTrack>, salt: Long, discovery: Boolean = false): List<String> {
             val random = Random(seed xor salt)
-            val ranked = list.sortedBy { track ->
+            val ranked = list.map { track ->
                 val engagement = stats[track.id]
                 val affinity = artistAffinity[normalize(track.artist)] ?: 0.0
                 val familiarity = sqrt((engagement?.plays ?: 0).toDouble())
                 val weight = if (discovery) 1.0 + affinity / (1.0 + familiarity)
                     else 1.0 + (if (track.id in favorites) 3.0 else 0.0) + sqrt(affinity) + familiarity
-                -ln(random.nextDouble().coerceAtLeast(0.000001)) / weight
-            }
+                track to (-ln(random.nextDouble().coerceAtLeast(0.000001)) / weight)
+            }.sortedBy { it.second }.map { it.first }
             // Round-robin the ranking by artist, so a large discography cannot fill the mix.
             val buckets = ranked.groupBy { normalize(it.artist) }.values.map { it.toMutableList() }
             return buildList {
-                while (size < minOf(50, ranked.size)) {
+                while (size < minOf(limit, ranked.size)) {
                     var added = false
-                    for (bucket in buckets) if (bucket.isNotEmpty() && size < 50) {
+                    for (bucket in buckets) if (bucket.isNotEmpty() && size < limit) {
                         add(bucket.removeAt(0).id); added = true
                     }
                     if (!added) break
@@ -89,17 +91,36 @@ object DiscoveryEngine {
         return ordered.take(rule.limit.coerceIn(1, 500)).map { it.id }
     }
 
-    fun search(query: String, songs: List<DiscoveryTrack>): List<String> {
+    fun searchIndex(songs: List<DiscoveryTrack>): List<DiscoverySearchEntry> = songs.map { song ->
+        val title = normalize(song.title); val artist = normalize(song.artist)
+        DiscoverySearchEntry(song.id, title, artist, "$title $artist ${normalize(song.album)} ${normalize(song.genre)} ${song.year}")
+    }
+
+    fun search(query: String, songs: List<DiscoveryTrack>): List<String> = searchIndexed(query, searchIndex(songs))
+
+    fun searchIndexed(query: String, index: List<DiscoverySearchEntry>): List<String> {
         val tokens = normalize(query).split(' ').filter { it.isNotEmpty() }.take(12)
         if (tokens.isEmpty()) return emptyList()
-        return songs.mapNotNull { song ->
-            val title = normalize(song.title); val artist = normalize(song.artist)
-            val album = normalize(song.album); val genre = normalize(song.genre)
-            val all = "$title $artist $album $genre ${song.year}"
-            if (!tokens.all { it in all }) return@mapNotNull null
-            val score: Int = tokens.fold(0) { total, token -> total + if (token == title) 10 else if (title.startsWith(token)) 7 else if (token in title) 5 else if (token in artist) 3 else 1 }
-            Triple(song.id, score, title)
+        return index.mapNotNull { song ->
+            if (!tokens.all { it in song.all }) return@mapNotNull null
+            val score: Int = tokens.fold(0) { total, token -> total + if (token == song.title) 10 else if (song.title.startsWith(token)) 7 else if (token in song.title) 5 else if (token in song.artist) 3 else 1 }
+            Triple(song.id, score, song.title)
         }.sortedWith(compareByDescending<Triple<String, Int, String>> { it.second }.thenBy { it.third }).map { it.first }.distinct()
+    }
+
+    fun embeddedLyrics(properties: Map<String, Array<String>>): String {
+        val keys = listOf("LYRICS", "LYRICSENG", "UNSYNCEDLYRICS", "SYNCEDLYRICS", "USLT", "SYLT")
+        return keys.firstNotNullOfOrNull { key -> properties[key]?.firstOrNull { it.isNotBlank() } }
+            ?: properties.entries.firstOrNull { it.key.contains("LYRIC", true) }?.value?.firstOrNull().orEmpty()
+    }
+
+    fun mergeTags(original: Map<String, Array<String>>, changes: Map<String, String>): HashMap<String, Array<String>> {
+        val result = HashMap(original)
+        changes.forEach { (key, value) ->
+            if (key == "LYRICS" && value.isBlank()) result.keys.filter { it.contains("LYRIC", true) || it in listOf("USLT", "SYLT") }.forEach { result.remove(it) }
+            if (value.isBlank()) result.remove(key) else result[key] = arrayOf(value)
+        }
+        return result
     }
 
     fun commonFolderRoot(paths: List<String>): String {
@@ -123,12 +144,16 @@ object DiscoveryEngine {
     /** Match a playlist path only when it identifies one library file. Never guess between duplicates. */
     fun importM3u(text: String, paths: Map<String, String>): Pair<List<String>, Int> {
         val ids = mutableListOf<String>(); var missing = 0
+        val normalized = paths.mapValues { it.value.replace('\\', '/') }
+        val fullPaths = normalized.entries.groupBy({ it.value }, { it.key })
+        val basenames = normalized.entries.groupBy { it.value.substringAfterLast('/') }
         for (raw in text.removePrefix("\uFEFF").lineSequence()) {
             val line = raw.trim(); if (line.isBlank() || line.startsWith('#')) continue
             if (Regex("https?://", RegexOption.IGNORE_CASE).containsMatchIn(line)) { missing++; continue }
-            val path = runCatching { if (line.startsWith("file:")) java.net.URI(line).path else line }.getOrDefault(line).replace('\\', '/')
-            val matches = paths.entries.filter { (id, file) -> id == line || file == path || file.replace('\\', '/').endsWith("/$path") }
-            if (matches.size == 1) ids.add(matches.single().key) else missing++
+            if (line in paths) { ids.add(line); continue }
+            val path = runCatching { if (line.startsWith("file:", true)) java.net.URI(line).path else line }.getOrDefault(line).replace('\\', '/')
+            val matches = fullPaths[path] ?: basenames[path.substringAfterLast('/')].orEmpty().filter { it.value.endsWith("/$path") }.map { it.key }
+            if (matches.size == 1) ids.add(matches.single()) else missing++
         }
         return ids to missing
     }

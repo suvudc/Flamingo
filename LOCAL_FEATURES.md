@@ -11,7 +11,7 @@ animated-cover lookup and complete offline artwork storage are retained.
   artists and today's listening overview. Sections can be hidden and reordered.
 - Local recommendations using favorite tracks, artist familiarity and recorded
   listening history, with daily stable selections, manual refresh, artist variety,
-  replay/discovery/fresh mixes and artist/genre mixes. No cloud AI is needed.
+  replay/discovery/fresh mixes and artist/genre mixes. Mix size is configurable from 10 to 100 songs. No cloud AI is needed.
 - Per-song mix exclusions and a reset action; save any mix as a normal playlist.
 - Smart playlists combining artist, genre, year range, favorites and unplayed
   filters, sorting and a song limit. Rules are saved and evaluated against the
@@ -25,7 +25,7 @@ animated-cover lookup and complete offline artwork storage are retained.
   song; ambiguous, unavailable and network stream entries are reported/skipped.
 - Additive backups for playlists, favorites, listening events, smart rules, mix
   exclusions and Home layout. Audio files and animated-cover downloads are not
-  copied into backups. Existing playlists are retained when restoring.
+  copied into backups. Backup imports/exports are bounded to 10 MB. Existing playlists are retained when restoring.
 - Local tag and embedded lyrics editing with the existing TagLib dependency,
   Android-mediated write permission, LRC import/export, rescan, duplicate review
   and missing-metadata review. Only explicit Save edits the selected audio file.

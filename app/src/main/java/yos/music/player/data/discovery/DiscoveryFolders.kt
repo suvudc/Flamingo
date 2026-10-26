@@ -20,6 +20,7 @@ object DiscoveryFolders {
     private var source: List<YosMediaItem>? = null
     private var cached: Map<String, List<YosMediaItem>> = emptyMap()
     suspend fun groups(context: Context, songs: List<YosMediaItem>): Map<String, List<YosMediaItem>> = withContext(Dispatchers.IO) {
+        if (songs.isEmpty() || !yos.music.player.data.libraries.MusicLibrary.hasAudioPermission(context)) return@withContext emptyMap()
         mutex.withLock {
             if (source === songs) return@withLock cached
             val byUri = hashMapOf<String, String>()

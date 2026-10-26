@@ -10,6 +10,7 @@ object DiscoveryPreferences {
     val sectionTitles = linkedMapOf("mix" to "Your Mix", "daily" to "Made for You", "recent" to "Recently Played", "added" to "Recently Added", "albums" to "Your Albums", "artists" to "Your Artists", "stats" to "Listening Overview")
     var sectionOrder by mutableDataSaverStateOf(dataSaverInterface = SettingsSaver, key = "discovery_home_order", initialValue = sectionTitles.keys.joinToString(","))
     var hiddenSections by mutableDataSaverStateOf(dataSaverInterface = SettingsSaver, key = "discovery_home_hidden", initialValue = "")
+    var mixSize by mutableDataSaverStateOf(dataSaverInterface = SettingsSaver, key = "discovery_mix_size", initialValue = 50)
     var mixRevision by mutableDataSaverStateOf(dataSaverInterface = SettingsSaver, key = "discovery_mix_revision", initialValue = 0)
     var searchJson by mutableDataSaverStateOf(dataSaverInterface = SettingsSaver, key = "discovery_search_history", initialValue = "[]")
     var rulesJson by mutableDataSaverStateOf(dataSaverInterface = SettingsSaver, key = "discovery_smart_rules", initialValue = "[]")

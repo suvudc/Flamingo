@@ -34,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import yos.music.player.R
 import yos.music.player.code.ListenHistoryManager
 import yos.music.player.code.MediaController
 import yos.music.player.code.ListenStatsManager
@@ -48,6 +49,7 @@ import yos.music.player.ui.widgets.basic.ProfileButton
 import yos.music.player.ui.widgets.basic.Title
 import java.util.Calendar
 import java.util.UUID
+import kotlin.math.roundToInt
 
 object DiscoveryRoutes {
     const val pattern = "Discovery/{page}?key={key}"
@@ -63,11 +65,12 @@ internal fun rememberDiscoveryMixes(): List<DiscoveryMix> {
     val songs = MusicLibrary.songs
     val favorites = FavPlayListLibrary.favPlayList
     val revision = DiscoveryPreferences.mixRevision
+    val mixSize = DiscoveryPreferences.mixSize
     val excluded = DiscoveryPreferences.excludedJson
     val historyReady = ListenStatsManager.statsEvents.value.isNotEmpty()
     var day by remember { mutableLongStateOf(DiscoveryLibrary.day()) }
     LaunchedEffect(Unit) { while (true) { delay(60_000); day = DiscoveryLibrary.day() } }
-    return produceState(emptyList<DiscoveryMix>(), songs, favorites, revision, excluded, day, historyReady) {
+    return produceState(emptyList<DiscoveryMix>(), songs, favorites, revision, mixSize, excluded, day, historyReady) {
         value = withContext(Dispatchers.Default) { DiscoveryLibrary.mixes(songs) }
     }.value
 }
@@ -90,13 +93,10 @@ fun DiscoveryHome(nav: NavController) {
     val greeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) { in 5..11 -> "Good morning"; in 12..17 -> "Good afternoon"; else -> "Good evening" }
     val favorites = FavPlayListLibrary.favPlayList
     val validUris = remember(songs) { songs.map { it.uri }.toHashSet() }
-    val recentSongs = remember(recents, validUris) { recents.filter { it.uri in validUris }.distinctBy { it.uri } }
+    val currentSongsByUri = remember(songs) { songs.associateBy { it.uri } }
+    val recentSongs = remember(recents, currentSongsByUri) { recents.mapNotNull { currentSongsByUri[it.uri] }.distinctBy { it.uri } }
     Title(title = "Home", rightIconContent = {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { DiscoveryRoutes.open(nav, "search") }) { Icon(Icons.Rounded.Search, "Search library", tint = MaterialTheme.colorScheme.primary) }
-            IconButton(onClick = { DiscoveryRoutes.open(nav, "home-options") }) { Icon(Icons.Rounded.Tune, "Customize Home", tint = MaterialTheme.colorScheme.primary) }
-            ProfileButton { nav.toUI(UI.Settings.Main) }
-        }
+        ProfileButton { nav.toUI(UI.Settings.Main) }
     }) {
         item("greeting") {
             Column(Modifier.padding(horizontal = 22.dp, vertical = 10.dp)) {
@@ -107,7 +107,7 @@ fun DiscoveryHome(nav: NavController) {
         }
         item("shortcuts") {
             LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("Search" to "search", "Mixes" to "mixes", "Smart Playlists" to "smart", "Folders" to "folders", "Genres" to "genres", "Tools" to "tools")) { (label, route) ->
+                items(listOf("Search" to "search", "Mixes" to "mixes", "Smart Playlists" to "smart", "Folders" to "folders", "Genres" to "genres", "Tools" to "tools", "Customize" to "home-options")) { (label, route) ->
                     AssistChip(onClick = { DiscoveryRoutes.open(nav, route) }, label = { Text(label) })
                 }
             }
@@ -148,14 +148,15 @@ fun DiscoveryHome(nav: NavController) {
                     }
                 }
                 "artists" -> if (songs.isNotEmpty()) item("artists") {
-                    val artists = remember(songs, favorites) {
+                    val followed = SettingsLibrary.FollowedArtists.toSet()
+                    val artists = remember(songs, favorites, followed) {
                         val favoriteArtists = favorites.flatMap { it.artistsList.orEmpty() }.groupingBy { it }.eachCount()
                         songs.flatMap { song -> song.artistsList.orEmpty().map { it to song } }.groupBy({ it.first }, { it.second }).entries
-                            .sortedByDescending { favoriteArtists[it.key] ?: 0 }.take(12)
+                            .sortedByDescending { (favoriteArtists[it.key] ?: 0) + if (it.key in followed) 10 else 0 }.take(12)
                     }
                     SectionHeading("Your Artists", "See all") { nav.toUI(UI.LocalArtists) }
                     LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(artists, key = { it.key }) { entry -> ArtworkTile(entry.key, "${entry.value.size} songs", entry.value.first().thumb) { DiscoveryRoutes.collection(nav, entry.key, entry.value) } }
+                        items(artists, key = { it.key }) { entry -> ArtworkTile(entry.key, "${entry.value.size} songs", entry.value.first().thumb) { LibraryObject.setTargetArtistName(entry.key); nav.toUI(UI.ArtistInfo) } }
                     }
                 }
                 "stats" -> item("stats") {
@@ -195,7 +196,7 @@ private fun MixCard(mix: DiscoveryMix, songs: List<YosMediaItem>, modifier: Modi
     val scope = rememberCoroutineScope()
     Box(modifier.height(242.dp).clip(RoundedCornerShape(22.dp)).background(MaterialTheme.colorScheme.surfaceVariant).clickable(onClick = onClick)) {
         Row(Modifier.fillMaxSize()) { for (column in 0..1) Column(Modifier.weight(1f)) { for (row in 0..1) {
-            AsyncImage(songs.getOrNull(column * 2 + row)?.thumb ?: songs.firstOrNull()?.thumb, null, Modifier.fillMaxWidth().weight(1f), contentScale = ContentScale.Crop)
+            AsyncImage(songs.getOrNull(column * 2 + row)?.thumb ?: songs.firstOrNull()?.thumb ?: R.drawable.placeholder_music_default_artwork, null, Modifier.fillMaxWidth().weight(1f), contentScale = ContentScale.Crop)
         } } }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .05f), Color.Black.copy(alpha = .85f)))))
         Column(Modifier.align(Alignment.BottomStart).padding(18.dp).padding(end = 40.dp)) {
@@ -217,7 +218,7 @@ private fun SongCarousel(songs: List<YosMediaItem>, onPlay: (YosMediaItem) -> Un
 @Composable
 private fun ArtworkTile(title: String, subtitle: String, uri: Uri?, onClick: () -> Unit) {
     Column(Modifier.width(142.dp).clickable(onClick = onClick)) {
-        AsyncImage(uri, null, Modifier.size(142.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentScale = ContentScale.Crop)
+        AsyncImage(uri ?: R.drawable.placeholder_music_default_artwork, null, Modifier.size(142.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentScale = ContentScale.Crop)
         Text(title, Modifier.padding(top = 7.dp), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -293,6 +294,7 @@ private fun MixBrowser(nav: NavController, id: String) {
 private fun HomeOptions(nav: NavController) {
     val order = (DiscoveryPreferences.sectionOrder.split(',') + DiscoveryPreferences.sectionTitles.keys).distinct().filter { it in DiscoveryPreferences.sectionTitles }
     val hidden = DiscoveryPreferences.hiddenSections.split(',').filter { it.isNotBlank() }.toSet()
+    var mixSize by remember(DiscoveryPreferences.mixSize) { mutableFloatStateOf(DiscoveryPreferences.mixSize.toFloat()) }
     Title("Customize Home", onBack = { nav.popBackStack() }) {
         item("intro") { Text("Choose and arrange your Home sections.", Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         itemsIndexed(order, key = { _, id -> id }) { index, id ->
@@ -301,6 +303,13 @@ private fun HomeOptions(nav: NavController) {
                 Text(DiscoveryPreferences.sectionTitles.getValue(id), Modifier.weight(1f).padding(10.dp))
                 IconButton({ val changed = order.toMutableList(); java.util.Collections.swap(changed, index, index - 1); DiscoveryPreferences.sectionOrder = changed.joinToString(",") }, enabled = index > 0) { Icon(Icons.Rounded.KeyboardArrowUp, "Move up") }
                 IconButton({ val changed = order.toMutableList(); java.util.Collections.swap(changed, index, index + 1); DiscoveryPreferences.sectionOrder = changed.joinToString(",") }, enabled = index < order.lastIndex) { Icon(Icons.Rounded.KeyboardArrowDown, "Move down") }
+            }
+        }
+        item("mix-size") {
+            Column(Modifier.padding(22.dp)) {
+                Text("Songs per Mix: ${mixSize.roundToInt()}", fontWeight = FontWeight.SemiBold)
+                Slider(value = mixSize, onValueChange = { mixSize = it }, valueRange = 10f..100f, steps = 8,
+                    onValueChangeFinished = { DiscoveryPreferences.mixSize = mixSize.roundToInt(); DiscoveryPreferences.mixRevision++ })
             }
         }
         item("reset") {
@@ -350,14 +359,17 @@ private fun GlobalSearch(nav: NavController) {
     var query by rememberSaveable { mutableStateOf("") }; var kind by rememberSaveable { mutableStateOf("Songs") }
     var results by remember { mutableStateOf<List<YosMediaItem>>(emptyList()) }; var loading by remember { mutableStateOf(false) }
     var shown by remember(query, kind) { mutableIntStateOf(100) }
-    val index = remember(songs) { DiscoveryLibrary.tracks(songs) }
+    val index = produceState(emptyList<DiscoverySearchEntry>(), songs) {
+        value = withContext(Dispatchers.Default) { DiscoveryEngine.searchIndex(DiscoveryLibrary.tracks(songs)) }
+    }.value
     LaunchedEffect(query, index) {
         loading = query.isNotBlank(); delay(180)
-        results = if (query.isBlank()) emptyList() else withContext(Dispatchers.Default) { DiscoveryLibrary.resolve(DiscoveryEngine.search(query, index), songs) }
+        results = if (query.isBlank()) emptyList() else withContext(Dispatchers.Default) { DiscoveryLibrary.resolve(DiscoveryEngine.searchIndexed(query, index), songs) }
         loading = false
     }
-    val groups = remember(results, kind) { when (kind) {
-        "Albums" -> results.groupBy { it.album ?: defaultAlbum }; "Artists" -> results.groupBy { it.artistsName ?: defaultArtistsName }
+    val groups = remember(results, kind, query) { when (kind) {
+        "Albums" -> results.groupBy { it.album ?: defaultAlbum }; "Artists" -> results.flatMap { song -> song.artistsList.orEmpty().map { it to song } }.groupBy({ it.first }, { it.second })
+            .filterKeys { name -> DiscoveryEngine.normalize(query).split(' ').all { it in DiscoveryEngine.normalize(name) } }
         "Genres" -> results.groupBy { it.genre ?: "Unknown Genre" }; else -> emptyMap()
     } }
     val folders = if (kind == "Folders") rememberDiscoveryFolders() else emptyMap()
@@ -365,7 +377,7 @@ private fun GlobalSearch(nav: NavController) {
     val playlists = remember(query, PlayListLibrary.playList) { PlayListLibrary.playList.filter { DiscoveryEngine.normalize(it.name).contains(DiscoveryEngine.normalize(query)) } }
     Title("Search", onBack = { nav.popBackStack() }) {
         item("search") {
-            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 22.dp), placeholder = { Text("Songs, artists, albums, genres…") }, singleLine = true,
+            OutlinedTextField(query, { query = it.take(250) }, Modifier.fillMaxWidth().padding(horizontal = 22.dp), placeholder = { Text("Songs, artists, albums, genres…") }, singleLine = true,
                 leadingIcon = { Icon(Icons.Rounded.Search, null) }, trailingIcon = { if (query.isNotBlank()) IconButton({ query = "" }) { Icon(Icons.Rounded.Close, "Clear search") } }, shape = RoundedCornerShape(16.dp))
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("Songs", "Albums", "Artists", "Genres", "Playlists", "Folders").forEach { label -> FilterChip(kind == label, { kind = label }, label = { Text(label) }) }
@@ -393,9 +405,10 @@ private fun GlobalSearch(nav: NavController) {
         } else items(groups.entries.toList(), key = { it.key }) { (name, entries) -> NavigationRow(name, "${entries.size} matching songs", Icons.Rounded.LibraryMusic) {
             DiscoveryPreferences.rememberSearch(query)
             if (kind == "Albums") { LibraryObject.setTargetAlbumName(name); nav.toUI(UI.AlbumInfo) }
+            else if (kind == "Artists") { LibraryObject.setTargetArtistName(name); nav.toUI(UI.ArtistInfo) }
             else DiscoveryRoutes.collection(nav, name, entries)
         } }
-        if (query.isNotBlank() && !loading && (if (kind == "Playlists") playlists.isEmpty() else if (kind == "Folders") folderMatches.isEmpty() else results.isEmpty())) item("no-results") {
+        if (query.isNotBlank() && !loading && (if (kind == "Playlists") playlists.isEmpty() else if (kind == "Folders") folderMatches.isEmpty() else if (kind == "Songs") results.isEmpty() else groups.isEmpty())) item("no-results") {
             Text("No matches in your local library.", Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
