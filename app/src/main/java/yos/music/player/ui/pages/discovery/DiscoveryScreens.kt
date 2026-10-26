@@ -92,9 +92,8 @@ fun DiscoveryHome(nav: NavController) {
     val scope = rememberCoroutineScope()
     val greeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) { in 5..11 -> "Good morning"; in 12..17 -> "Good afternoon"; else -> "Good evening" }
     val favorites = FavPlayListLibrary.favPlayList
-    val validUris = remember(songs) { songs.map { it.uri }.toHashSet() }
-    val currentSongsByUri = remember(songs) { songs.associateBy { it.uri } }
-    val recentSongs = remember(recents, currentSongsByUri) { recents.mapNotNull { currentSongsByUri[it.uri] }.distinctBy { it.uri } }
+    val currentSongsByUri = remember(songs) { songs.associateBy { it.uri.toString() } }
+    val recentSongs = remember(recents, currentSongsByUri) { recents.mapNotNull { currentSongsByUri[it.uri.toString()] }.distinctBy { it.uri } }
     Title(title = "Home", rightIconContent = {
         ProfileButton { nav.toUI(UI.Settings.Main) }
     }) {
@@ -119,13 +118,13 @@ fun DiscoveryHome(nav: NavController) {
                     val mix = mixes.firstOrNull()
                     SectionHeading("Your Mix", "Refresh") { DiscoveryPreferences.mixRevision++ }
                     if (mix == null) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 22.dp))
-                    else MixCard(mix, DiscoveryLibrary.resolve(mix.trackIds, songs), Modifier.fillMaxWidth().padding(horizontal = 20.dp)) { DiscoveryRoutes.open(nav, "mix", mix.id) }
+                    else MixCard(mix, mix.trackIds.mapNotNull { currentSongsByUri[it] }, Modifier.fillMaxWidth().padding(horizontal = 20.dp)) { DiscoveryRoutes.open(nav, "mix", mix.id) }
                 }
                 "daily" -> if (mixes.size > 1) item("daily-mixes") {
                     SectionHeading("Made for You", "See all") { DiscoveryRoutes.open(nav, "mixes") }
                     LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(mixes.drop(1), key = { it.id }) { mix ->
-                            MixCard(mix, DiscoveryLibrary.resolve(mix.trackIds, songs), Modifier.width(230.dp)) { DiscoveryRoutes.open(nav, "mix", mix.id) }
+                            MixCard(mix, mix.trackIds.mapNotNull { currentSongsByUri[it] }, Modifier.width(230.dp)) { DiscoveryRoutes.open(nav, "mix", mix.id) }
                         }
                     }
                 }
@@ -263,13 +262,14 @@ fun DiscoveryPage(nav: NavController, page: String, key: String) {
 @Composable
 private fun MixBrowser(nav: NavController, id: String) {
     val songs = MusicLibrary.songs; val mixes = rememberDiscoveryMixes()
+    val songsByUri = remember(songs) { songs.associateBy { it.uri.toString() } }
     val mix = mixes.firstOrNull { it.id == id }
     val scope = rememberCoroutineScope(); val context = LocalContext.current
     Title(title = if (id.isBlank()) "Made for You" else mix?.title ?: "Your Mix", onBack = { nav.popBackStack() }, rightIcon = Icons.Rounded.Refresh, onRightIcon = { DiscoveryPreferences.mixRevision++ }) {
         if (id.isBlank()) items(mixes, key = { it.id }) { item ->
-            MixCard(item, DiscoveryLibrary.resolve(item.trackIds, songs), Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) { DiscoveryRoutes.open(nav, "mix", item.id) }
+            MixCard(item, item.trackIds.mapNotNull { songsByUri[it] }, Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) { DiscoveryRoutes.open(nav, "mix", item.id) }
         } else if (mix != null) {
-            val queue = DiscoveryLibrary.resolve(mix.trackIds, songs)
+            val queue = mix.trackIds.mapNotNull { songsByUri[it] }
             item("actions") {
                 Column(Modifier.padding(horizontal = 22.dp)) {
                     Text(mix.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -330,7 +330,7 @@ private fun CollectionBrowser(nav: NavController, page: String, folderPath: Stri
     val groups = remember(songs, page) {
         when (page) {
             "genres" -> songs.groupBy { it.genre?.takeIf { it.isNotBlank() } ?: "Unknown Genre" }
-            "years" -> songs.groupBy { (it.releaseYear ?: it.recordingYear)?.toString() ?: "Unknown Year" }
+            "years" -> songs.groupBy { DiscoveryLibrary.year(it).takeIf { it > 0 }?.toString() ?: "Unknown Year" }
             else -> emptyMap()
         }.toSortedMap(String.CASE_INSENSITIVE_ORDER)
     }
@@ -418,17 +418,30 @@ private fun GlobalSearch(nav: NavController) {
 private fun SmartPlaylists(nav: NavController) {
     val songs = MusicLibrary.songs
     val rules = DiscoveryPreferences.rules()
+    val scope = rememberCoroutineScope()
+    var loading by remember { mutableStateOf(false) }
+    fun openRule(rule: SmartMixRule) {
+        if (loading) return
+        scope.launch {
+            loading = true
+            try {
+                val result = withContext(Dispatchers.Default) { DiscoveryLibrary.evaluate(rule, songs) }
+                DiscoveryRoutes.collection(nav, rule.name, result)
+            } finally { loading = false }
+        }
+    }
     Title("Smart Playlists", onBack = { nav.popBackStack() }, rightIcon = Icons.Rounded.Add, onRightIcon = { DiscoveryRoutes.open(nav, "smart-edit") }) {
+        if (loading) item("loading") { LinearProgressIndicator(Modifier.fillMaxWidth()) }
         item("intro") { Text("Playlists that update from your library, favorites and listening history whenever you open them.", Modifier.padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         val presets = listOf(
             SmartMixRule(name = "Favorites", favoritesOnly = true), SmartMixRule(name = "Never Played", unplayedOnly = true),
             SmartMixRule(name = "Most Played", order = "plays"), SmartMixRule(name = "Recently Added", order = "recent"),
         )
-        items(presets, key = { it.name }) { rule -> NavigationRow(rule.name, icon = Icons.Rounded.AutoAwesome) { DiscoveryRoutes.collection(nav, rule.name, DiscoveryLibrary.evaluate(rule, songs)) } }
+        items(presets, key = { it.name }) { rule -> NavigationRow(rule.name, icon = Icons.Rounded.AutoAwesome) { openRule(rule) } }
         item("saved") { SectionHeading("Your Rules", "Create") { DiscoveryRoutes.open(nav, "smart-edit") } }
         items(rules, key = { it.id }) { rule ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) { NavigationRow(rule.name, "Up to ${rule.limit} songs", Icons.Rounded.AutoAwesome) { DiscoveryRoutes.collection(nav, rule.name, DiscoveryLibrary.evaluate(rule, songs)) } }
+                Box(Modifier.weight(1f)) { NavigationRow(rule.name, "Up to ${rule.limit} songs", Icons.Rounded.AutoAwesome) { openRule(rule) } }
                 IconButton({ DiscoveryRoutes.open(nav, "smart-edit", rule.id) }) { Icon(Icons.Rounded.Edit, "Edit ${rule.name}") }
             }
         }

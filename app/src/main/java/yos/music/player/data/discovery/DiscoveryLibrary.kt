@@ -5,9 +5,10 @@ import yos.music.player.data.libraries.*
 import java.util.Calendar
 
 object DiscoveryLibrary {
+    fun year(song: YosMediaItem): Int = song.releaseYear?.takeIf { it > 0 } ?: song.recordingYear?.takeIf { it > 0 } ?: 0
     fun tracks(songs: List<YosMediaItem>): List<DiscoveryTrack> = songs.mapNotNull { song ->
         song.uri?.toString()?.let { DiscoveryTrack(it, song.title ?: defaultTitle, song.artistsName ?: defaultArtistsName,
-            song.album ?: defaultAlbum, song.genre.orEmpty(), song.releaseYear ?: song.recordingYear ?: 0,
+            song.album ?: defaultAlbum, song.genre.orEmpty(), year(song),
             song.addDate ?: 0, song.duration) }
     }
     fun engagements(): Map<String, TrackEngagement> = ListenStatsManager.statsEvents.value.groupBy { it.uri.orEmpty() }.mapValues { (_, events) ->

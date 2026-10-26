@@ -111,7 +111,7 @@ object DiscoveryEngine {
     fun embeddedLyrics(properties: Map<String, Array<String>>): String {
         val keys = listOf("LYRICS", "LYRICSENG", "UNSYNCEDLYRICS", "SYNCEDLYRICS", "USLT", "SYLT")
         return keys.firstNotNullOfOrNull { key -> properties[key]?.firstOrNull { it.isNotBlank() } }
-            ?: properties.entries.firstOrNull { it.key.contains("LYRIC", true) }?.value?.firstOrNull().orEmpty()
+            ?: properties.entries.firstOrNull { it.key.contains("LYRIC", true) && it.value.any { value -> value.isNotBlank() } }?.value?.firstOrNull { it.isNotBlank() }.orEmpty()
     }
 
     fun mergeTags(original: Map<String, Array<String>>, changes: Map<String, String>): HashMap<String, Array<String>> {

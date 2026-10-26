@@ -30,6 +30,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import yos.music.player.code.AudioMetadataUtils
 import yos.music.player.data.discovery.DiscoveryEngine
+import yos.music.player.data.discovery.DiscoveryLibrary
 import yos.music.player.data.libraries.*
 import yos.music.player.ui.UI
 import yos.music.player.ui.toUI
@@ -120,7 +121,7 @@ fun LocalTrackEditor(nav: NavController, id: String) {
     if (song == null) { Title("Track Details", onBack = { nav.popBackStack() }) { item { Text("This song is no longer in the library.", Modifier.padding(22.dp)) } }; return }
     var title by rememberSaveable(id) { mutableStateOf(song.title.orEmpty()) }; var artist by rememberSaveable(id) { mutableStateOf(song.artists.orEmpty()) }
     var album by rememberSaveable(id) { mutableStateOf(song.album.orEmpty()) }; var albumArtist by rememberSaveable(id) { mutableStateOf(song.albumArtists.orEmpty()) }
-    var genre by rememberSaveable(id) { mutableStateOf(song.genre.orEmpty()) }; var year by rememberSaveable(id) { mutableStateOf((song.releaseYear ?: song.recordingYear)?.toString().orEmpty()) }
+    var genre by rememberSaveable(id) { mutableStateOf(song.genre.orEmpty()) }; var year by rememberSaveable(id) { mutableStateOf(DiscoveryLibrary.year(song).takeIf { it > 0 }?.toString().orEmpty()) }
     var lyrics by rememberSaveable(id) { mutableStateOf("") }; var originalLyrics by remember(id) { mutableStateOf("") }
     var loaded by remember(id) { mutableStateOf(false) }; var saving by remember { mutableStateOf(false) }; var message by remember { mutableStateOf("") }
     var pendingUri by remember { mutableStateOf<Uri?>(null) }; var pendingValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
@@ -180,7 +181,7 @@ fun LocalTrackEditor(nav: NavController, id: String) {
                     if (album != song.album.orEmpty()) put("ALBUM", album.trim())
                     if (albumArtist != song.albumArtists.orEmpty()) put("ALBUMARTIST", albumArtist.trim())
                     if (genre != song.genre.orEmpty()) put("GENRE", genre.trim())
-                    if (year != (song.releaseYear ?: song.recordingYear)?.toString().orEmpty()) put("DATE", year.trim())
+                    if (year != DiscoveryLibrary.year(song).takeIf { it > 0 }?.toString().orEmpty()) put("DATE", year.trim())
                     if (lyrics != originalLyrics) put("LYRICS", lyrics)
                 }
                 if (values.isEmpty()) { message = "No changes to save."; return@Button }
