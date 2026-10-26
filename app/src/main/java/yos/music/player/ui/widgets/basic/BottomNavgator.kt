@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -144,6 +145,7 @@ private fun GlassTabs(items: List<NavItem>, selected: Int, ink: Color, onSelect:
 
 @Composable
 private fun MiniSongPill(morph: Float, ink: Color, onExpand: () -> Unit) {
+    val artworkMotion = LocalPlayerArtworkMotion.current
     val track = MediaController.musicPlaying.value
     val playing = MediaViewModelObject.isPlaying.value
     val scope = rememberCoroutineScope()
@@ -165,7 +167,8 @@ private fun MiniSongPill(morph: Float, ink: Color, onExpand: () -> Unit) {
                 change.consume(); vertical += amount
             }, onDragEnd = { if (vertical < -24.dp.toPx()) onExpand() })
         }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size((40f - 4f * morph).dp).clip(RoundedCornerShape((10f + 10f * morph).dp))
+        Box(Modifier.size((40f - 4f * morph).dp)
+            .onGloballyPositioned { artworkMotion?.captureThumbnail(it, 10f + 10f * morph) }.clip(RoundedCornerShape((10f + 10f * morph).dp))
             .background(ink.copy(alpha = .1f)), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.MusicNote, null, tint = ink.copy(alpha = .7f))
             AsyncImage(request, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)

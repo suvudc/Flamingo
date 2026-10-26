@@ -166,6 +166,10 @@ import yos.music.player.ui.widgets.basic.rememberGlassDockScrollState
 import yos.music.player.ui.widgets.basic.playerSheetTargetOpen
 import yos.music.player.ui.widgets.basic.playerSheetProgress
 import yos.music.player.ui.widgets.basic.StartupBrand
+import androidx.compose.runtime.CompositionLocalProvider
+import yos.music.player.ui.widgets.basic.LocalPlayerArtworkMotion
+import yos.music.player.ui.widgets.basic.PlayerArtworkMotion
+import yos.music.player.ui.widgets.basic.PlayerArtworkFlight
 import yos.music.player.ui.widgets.basic.BottomNavigator
 import yos.music.player.ui.widgets.basic.ImageQuality
 import yos.music.player.ui.widgets.basic.NavItem
@@ -213,6 +217,8 @@ class MainActivity : BaseActivity() {
         enableEdgeToEdge()
         setContent {
             YosMusicTheme {
+                val artworkMotion = remember { PlayerArtworkMotion() }
+                CompositionLocalProvider(LocalPlayerArtworkMotion provides artworkMotion) {
                 ProvideWindowInsets {
                     val context = LocalContext.current
                     val density = LocalDensity.current
@@ -299,6 +305,15 @@ class MainActivity : BaseActivity() {
                             derivedStateOf {
                                 yosBottomSheetConfig.menuAlpha < 0.3f
                             }
+                        }
+
+                        suspend fun minimizePlayer(velocity: Float = 0f) {
+                            artworkMotion.begin(yosBottomSheetConfig.progress)
+                            offsetY.animateTo(0f, initialVelocity = velocity,
+                                animationSpec = if (artworkMotion.closing) tween(420, easing = androidx.compose.animation.core.LinearEasing) else navSpec)
+                            playerSheetOpen.value = false
+                            artworkMotion.playerOpen = false
+                            artworkMotion.reset()
                         }
 
                         val nowPageNowPlaying =
@@ -396,8 +411,7 @@ class MainActivity : BaseActivity() {
                                             } else {
                                                 scope.launch {
                                                     // scaffoldState.bottomSheetState.partialExpand()
-                                                    offsetY.animateTo(0f, animationSpec = navSpec)
-                                                    playerSheetOpen.value = false
+                                                    minimizePlayer()
                                                 }
                                             }
                                         }
@@ -557,6 +571,8 @@ class MainActivity : BaseActivity() {
                                             opacity = { yosBottomSheetConfig.menuAlpha },
                                             onExpandPlayer = {
                                                 scope.launch {
+                                                    artworkMotion.reset()
+                                                    artworkMotion.playerOpen = true
                                                     offsetY.snapTo(0f)
                                                     playerSheetOpen.value = true
                                                     offsetY.animateTo(parentHeight.intValue.toFloat(), animationSpec = navSpec)
@@ -647,7 +663,19 @@ class MainActivity : BaseActivity() {
                             Surface(
                                 modifier = Modifier.fillMaxSize().zIndex(1f)
                                     .graphicsLayer {
-                                        translationY = parentHeight.intValue * (1f - yosBottomSheetConfig.progress)
+                                        val p = yosBottomSheetConfig.progress
+                                        if (artworkMotion.closing) {
+                                            val q = (p / artworkMotion.startProgress).coerceIn(0f, 1f)
+                                            translationY = parentHeight.intValue * (1f - artworkMotion.startProgress) + parentHeight.intValue * .12f * (1f - q)
+                                            alpha = q * q
+                                            scaleX = .96f + .04f * q
+                                            scaleY = scaleX
+                                        } else {
+                                            translationY = parentHeight.intValue * (1f - p)
+                                            alpha = 1f
+                                            scaleX = 1f
+                                            scaleY = 1f
+                                        }
                                     }
                                     .draggable(
                                         orientation = Orientation.Vertical,
@@ -658,8 +686,7 @@ class MainActivity : BaseActivity() {
                                                 if (playerSheetTargetOpen(yosBottomSheetConfig.progress, velocity)) {
                                                     offsetY.animateTo(parentHeight.intValue.toFloat(), initialVelocity = velocity, animationSpec = navSpec)
                                                 } else {
-                                                    offsetY.animateTo(0f, initialVelocity = velocity, animationSpec = navSpec)
-                                                    playerSheetOpen.value = false
+                                                    minimizePlayer(velocity)
                                                 }
                                             }
                                         }
@@ -673,8 +700,7 @@ class MainActivity : BaseActivity() {
                                     navController = navController,
                                     onMinimizeNowPlaying = {
                                         nowPageNowPlaying.value = Album
-                                        offsetY.animateTo(0f, animationSpec = navSpec)
-                                        playerSheetOpen.value = false
+                                        minimizePlayer()
                                     },
                                     isPlayingStatusLambda = { isPlaying.value },
                                     isPlayingOnChanged = { isPlaying.value = it },
@@ -684,6 +710,8 @@ class MainActivity : BaseActivity() {
                                 ) { nowPageNowPlaying.value = it }
                             }
                         }
+
+                        PlayerArtworkFlight(artworkMotion) { yosBottomSheetConfig.progress }
 
                         // Activity-level host for the playlist
                         // delete-undo snackbar. Mounted here so the
@@ -706,9 +734,10 @@ class MainActivity : BaseActivity() {
                         StartupBrand(showStartupBrand.value)
                     /*}*/
                 }
+                }
             }
+        }
     }
-}
 
 @Composable
 private fun rememberBluetoothAudioConnected(): Boolean

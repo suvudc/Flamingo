@@ -113,6 +113,8 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import yos.music.player.ui.widgets.basic.LocalPlayerArtworkMotion
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -851,6 +853,7 @@ private fun ColumnScope.Album(
 
     YosWrapper {
         val dp = (7 + (27 * scale.value)).dp
+        val artworkMotion = LocalPlayerArtworkMotion.current
         ShadowImageWithCache(
             dataLambda = { music()?.thumb }, contentDescription = null, modifier = Modifier
                 .fillMaxWidth()
@@ -860,7 +863,9 @@ private fun ColumnScope.Album(
                     // scaleY = scale.value
                 }
                 .padding(start = dp, end = dp, bottom = dp)
-                .then(modifier),
+                .then(modifier)
+                .onGloballyPositioned { artworkMotion?.captureSource(it) }
+                .graphicsLayer { alpha = if (artworkMotion?.closing == true) 0f else 1f },
             imageQuality = ImageQuality.RAW,
             shadowOverlay = true,
             overlayContent = {
