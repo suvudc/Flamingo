@@ -395,7 +395,7 @@ class MainActivity : BaseActivity() {
                                 // 主界面本体
                                 SharedTransitionLayout {
                                     YosWrapper {
-                                        BackHandler(showNowPlaying.value) {
+                                        BackHandler(playerSheetOpen.value) {
                                             // println("isVisible: ${showNowPlaying.value}, nowPageNowPlaying.value: ${nowPageNowPlaying.value}")
                                             if (nowPageNowPlaying.value != Album) {
                                                 nowPageNowPlaying.value =
