@@ -35,9 +35,11 @@ class ArtworkDiagnosticsActivity : Activity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(padding, padding, padding, padding)
+            setBackgroundColor(android.graphics.Color.rgb(24, 24, 24))
         }
         report = TextView(this).apply {
             textSize = 16f
+            setTextColor(android.graphics.Color.WHITE)
             setTextIsSelectable(true)
         }
         preview = ImageView(this).apply { adjustViewBounds = true }
