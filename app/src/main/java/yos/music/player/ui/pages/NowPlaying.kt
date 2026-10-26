@@ -873,7 +873,7 @@ private fun ColumnScope.Album(
                 .padding(start = dp, end = dp, bottom = dp)
                 .then(modifier)
                 .onGloballyPositioned { artworkMotion?.captureSource(it) }
-                .graphicsLayer { alpha = if (artworkMotion?.closing == true) 0f else 1f }
+                .graphicsLayer { alpha = if (artworkMotion?.hasFlight == true) 0f else 1f }
                 .drawWithContent {
                     if (artworkMotion?.closing != true) {
                         artworkLayer.record { this@drawWithContent.drawContent() }

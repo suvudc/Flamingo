@@ -34,3 +34,15 @@ coverage vary. No provider credentials are embedded.
 Validation: JVM tests cover word timing, line fallback, invalid responses,
 recording matching, durable reload, failed replacement and key isolation. The
 Android build and all unit tests are run by the optimized APK workflow.
+
+## Build 20 transition polish
+
+Dismissal now belongs to the activity scope, so switching away from a player
+subpanel cannot cancel the animation through the button's disappearing scope.
+New drags are ignored while closing, and repeated opens are guarded. An
+interrupted animation clears its closing/flight ownership before propagating
+cancellation. Close ownership no longer depends on artwork bounds existing; a
+missing cover keeps its ordinary slide instead of permitting two animations.
+The cover's flight and the controls fade are separate: controls are gone by
+65% remaining travel while the page appears gradually, avoiding ghost titles
+and transport controls over library rows. No lyrics/provider/layout redesign.

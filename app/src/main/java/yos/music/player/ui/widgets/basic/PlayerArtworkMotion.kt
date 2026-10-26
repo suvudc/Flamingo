@@ -34,6 +34,7 @@ class PlayerArtworkMotion {
     var startProgress = 1f
         private set
     internal var endCorner = 10f
+    val hasFlight: Boolean get() = closing && start != null && end != null && artworkLayer != null
     fun captureSource(coordinates: LayoutCoordinates) {
         if (!closing) source = Rect(coordinates.positionInRoot(), Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat()))
     }
@@ -45,13 +46,15 @@ class PlayerArtworkMotion {
     }
     fun begin(progress: Float) {
         val a = source; val b = thumbnail
-        if (a == null || b == null || a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0 || progress <= .01f) return
+        startProgress = progress.takeIf { it.isFinite() && it > .01f } ?: 1f
+        closing = true
+        if (a == null || b == null || artworkLayer == null || a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0 || progress <= .01f) return
         start = ArtworkFlightRect(a.left, a.top, a.width, a.height)
         end = ArtworkFlightRect(b.left, b.top, b.width, b.height)
         endCorner = thumbnailCorner
         startProgress = progress
-        closing = true
     }
+    fun cancelClose() { closing = false; start = null; end = null }
     fun reset() { closing = false; settled = false; source = null; start = null; end = null }
 }
 
@@ -59,7 +62,7 @@ val LocalPlayerArtworkMotion = staticCompositionLocalOf<PlayerArtworkMotion?> { 
 
 @Composable
 fun PlayerArtworkFlight(motion: PlayerArtworkMotion, progress: () -> Float) {
-    if (!motion.closing) return
+    if (!motion.hasFlight) return
     val source = motion.start ?: return
     val target = motion.end ?: return
     val density = LocalDensity.current

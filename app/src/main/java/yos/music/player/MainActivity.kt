@@ -169,6 +169,7 @@ import yos.music.player.ui.widgets.basic.StartupBrand
 import androidx.compose.runtime.CompositionLocalProvider
 import yos.music.player.ui.widgets.basic.LocalPlayerArtworkMotion
 import yos.music.player.ui.widgets.basic.PlayerArtworkMotion
+import yos.music.player.ui.widgets.basic.playerDismissVisuals
 import yos.music.player.ui.widgets.basic.PlayerArtworkFlight
 import yos.music.player.ui.widgets.basic.BottomNavigator
 import yos.music.player.ui.widgets.basic.ImageQuality
@@ -310,10 +311,16 @@ class MainActivity : BaseActivity() {
                         suspend fun minimizePlayer(velocity: Float = 0f) {
                             if (artworkMotion.closing) return
                             artworkMotion.begin(yosBottomSheetConfig.progress)
-                            offsetY.animateTo(0f, initialVelocity = velocity, animationSpec = navSpec)
-                            playerSheetOpen.value = false
-                            artworkMotion.playerOpen = false
-                            artworkMotion.reset()
+                            try {
+                                offsetY.animateTo(0f, initialVelocity = velocity, animationSpec = navSpec)
+                                playerSheetOpen.value = false
+                                artworkMotion.playerOpen = false
+                                artworkMotion.reset()
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                // A resize or another animation must never leave a frozen ghost player.
+                                artworkMotion.cancelClose()
+                                throw cancelled
+                            }
                         }
 
                         val nowPageNowPlaying =
@@ -375,8 +382,13 @@ class MainActivity : BaseActivity() {
                                     .graphicsLayer {
                                         // Keep the glass backdrop stationary. Scaling its entire offscreen
                                         // layer invalidated the blur source on every frame of the flight.
-                                        alpha = if (playerSheetOpen.value && !artworkMotion.closing &&
-                                            yosBottomSheetConfig.progress >= 1f) 0f else 1f
+                                        alpha = when {
+                                            artworkMotion.closing -> playerDismissVisuals(
+                                                yosBottomSheetConfig.progress, artworkMotion.startProgress
+                                            ).pageAlpha
+                                            playerSheetOpen.value && yosBottomSheetConfig.progress >= 1f -> 0f
+                                            else -> 1f
+                                        }
                                     }
 
                                 ,
@@ -553,7 +565,9 @@ class MainActivity : BaseActivity() {
                                             dockState = glassDock,
                                             opacity = { yosBottomSheetConfig.menuAlpha },
                                             onExpandPlayer = {
-                                                scope.launch {
+                                                if (playerSheetOpen.value) return@BottomNavigator
+                                                playerSheetOpen.value = true
+                                                scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
                                                     artworkMotion.reset()
                                                     artworkMotion.playerOpen = true
                                                     offsetY.snapTo(0f)
@@ -640,7 +654,7 @@ class MainActivity : BaseActivity() {
                         Spacer(Modifier.fillMaxSize().onSizeChanged { parentHeight.intValue = it.height })
                         if (playerSheetOpen.value && parentHeight.intValue > 0) {
                             val dragState = rememberDraggableState { delta ->
-                                scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                if (!artworkMotion.closing) scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
                                     offsetY.snapTo((offsetY.value + delta).coerceIn(0f, parentHeight.intValue.toFloat()))
                                 }
                             }
@@ -648,10 +662,10 @@ class MainActivity : BaseActivity() {
                                 modifier = Modifier.fillMaxSize().zIndex(1f)
                                     .graphicsLayer {
                                         val p = yosBottomSheetConfig.progress
-                                        if (artworkMotion.closing) {
-                                            val q = (p / artworkMotion.startProgress).coerceIn(0f, 1f)
+                                        if (artworkMotion.closing && artworkMotion.hasFlight) {
+                                            val q = playerDismissVisuals(p, artworkMotion.startProgress).fraction
                                             translationY = parentHeight.intValue * (1f - artworkMotion.startProgress) + parentHeight.intValue * .12f * (1f - q)
-                                            alpha = ((q - .15f) / .85f).coerceIn(0f, 1f)
+                                            alpha = playerDismissVisuals(p, artworkMotion.startProgress).controlsAlpha
                                             scaleX = 1f
                                             scaleY = 1f
                                         } else {
@@ -662,11 +676,12 @@ class MainActivity : BaseActivity() {
                                         }
                                     }
                                     .draggable(
+                                        enabled = !artworkMotion.closing,
                                         orientation = Orientation.Vertical,
                                         reverseDirection = true,
                                         state = dragState,
                                         onDragStopped = { velocity ->
-                                            scope.launch {
+                                            if (!artworkMotion.closing) scope.launch {
                                                 if (playerSheetTargetOpen(yosBottomSheetConfig.progress, velocity)) {
                                                     offsetY.animateTo(parentHeight.intValue.toFloat(), initialVelocity = velocity, animationSpec = navSpec)
                                                     artworkMotion.settled = true
@@ -684,8 +699,12 @@ class MainActivity : BaseActivity() {
                                     mediaViewModel = mediaViewModel,
                                     navController = navController,
                                     onMinimizeNowPlaying = {
-                                        nowPageNowPlaying.value = Album
-                                        minimizePlayer()
+                                        // Hosted by the activity: switching from lyrics or an overflow
+                                        // sheet may dispose the button's coroutine scope mid-dismissal.
+                                        scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                            nowPageNowPlaying.value = Album
+                                            minimizePlayer()
+                                        }.join()
                                     },
                                     isPlayingStatusLambda = { isPlaying.value },
                                     isPlayingOnChanged = { isPlaying.value = it },
