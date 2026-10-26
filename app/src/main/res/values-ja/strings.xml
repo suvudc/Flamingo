@@ -25,7 +25,7 @@
     <string name="settings_library_artist_split_hint">Use one separator per line. Default: ,</string>
     <string name="settings_library_artist_split_placeholder">Enter one separator per line</string>
     <string name="settings_library_animated_album_covers">アニメーションアルバムカバー</string>
-    <string name="settings_library_animated_album_covers_desc">曲ディレクトリの anim フォルダにあるローカルアルバム MP4 を再生します。API のダウンロードはアプリのキャッシュに保存されます。</string>
+    <string name="settings_library_animated_album_covers_desc">anim フォルダのローカル MP4 を再生します。オンライン検索を有効にすると、プレーヤーを開いた際に Apple Music、Tidal、コミュニティのカバーを保存します。保存完了後はオフラインで再生でき、削除またはアプリデータ消去まで保持されます。</string>
     <string name="settings_library_animated_album_covers_use_api">API を使用（インターネットが必要）</string>
     <string name="settings_library_animated_album_cover_blacklist">アニメーションカバーのブラックリスト</string>
     <string name="settings_library_animated_album_cover_blacklist_placeholder">1 行に 1 アルバム</string>

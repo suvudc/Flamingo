@@ -26,7 +26,7 @@
     <string name="settings_library_artist_split_hint">Use one separator per line. Default: ,</string>
     <string name="settings_library_artist_split_placeholder">Enter one separator per line</string>
     <string name="settings_library_animated_album_covers">Animated Album Covers</string>
-    <string name="settings_library_animated_album_covers_desc">Plays local album MP4s from the song directory’s anim folder. API downloads are stored in the app cache.</string>
+    <string name="settings_library_animated_album_covers_desc">Plays local MP4s from the song folder’s anim directory. With online lookup enabled, covers from Apple Music, Tidal and the community are downloaded automatically when you open the player. Completed downloads play offline and stay saved until you delete them or clear app data.</string>
     <string name="settings_library_animated_album_covers_use_api">Use API (requires internet)</string>
     <string name="settings_library_animated_album_cover_blacklist">Animated Cover Blacklist</string>
     <string name="settings_library_animated_album_cover_blacklist_placeholder">One album per line</string>

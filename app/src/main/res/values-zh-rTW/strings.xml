@@ -25,7 +25,7 @@
     <string name="settings_library_artist_split_hint">Use one separator per line. Default: ,</string>
     <string name="settings_library_artist_split_placeholder">Enter one separator per line</string>
     <string name="settings_library_animated_album_covers">動態專輯封面</string>
-    <string name="settings_library_animated_album_covers_desc">播放歌曲目錄下 anim 資料夾中的本機專輯 MP4。API 下載內容會儲存在應用程式快取中。</string>
+    <string name="settings_library_animated_album_covers_desc">播放 anim 資料夾中的本機 MP4。啟用線上搜尋後，開啟播放器會自動下載 Apple Music、Tidal 和社群的動態封面。下載完成後可離線播放，直到手動刪除或清除應用程式資料。</string>
     <string name="settings_library_animated_album_covers_use_api">使用 API（需要互聯網）</string>
     <string name="settings_library_animated_album_cover_blacklist">動態封面黑名單</string>
     <string name="settings_library_animated_album_cover_blacklist_placeholder">每行一張專輯</string>
