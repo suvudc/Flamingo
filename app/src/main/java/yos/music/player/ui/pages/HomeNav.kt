@@ -66,7 +66,7 @@ fun HomeNav(
             userScrollEnabled = false
         ) { page ->
             when (page) {
-                0 -> Home(navController, imageViewModel)
+                0 -> yos.music.player.ui.pages.discovery.DiscoveryHome(navController)
                 1 -> Library(navController)
                 2 -> Stats(navController)
             }

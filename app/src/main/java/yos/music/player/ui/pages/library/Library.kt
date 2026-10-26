@@ -3,6 +3,8 @@ package yos.music.player.ui.pages.library
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -34,6 +36,16 @@ fun Library(navController: NavController) {
                     Modifier
                         .fillMaxSize(),
                 ) {
+                    yos.music.player.ui.pages.discovery.NavigationRow("Search", "Find songs, albums, artists and playlists", androidx.compose.material.icons.Icons.Rounded.Search) {
+                        yos.music.player.ui.pages.discovery.DiscoveryRoutes.open(navController, "search")
+                    }
+                    yos.music.player.ui.pages.discovery.NavigationRow("Favorites", "Your liked songs", androidx.compose.material.icons.Icons.Rounded.Favorite) {
+                        yos.music.player.ui.pages.discovery.DiscoveryRoutes.collection(navController, "Favorites", yos.music.player.data.libraries.FavPlayListLibrary.favPlayList)
+                    }
+                    listOf("Your Mix & Daily Mixes" to "mixes", "Smart Playlists" to "smart", "Genres" to "genres", "Years" to "years", "Folders" to "folders", "Library Tools" to "tools").forEach { (name, page) ->
+                        yos.music.player.ui.pages.discovery.NavigationRow(name) { yos.music.player.ui.pages.discovery.DiscoveryRoutes.open(navController, page) }
+                    }
+                    LibraryDivider()
                     SmallLabelItem(
                         icon = painterResource(id = R.drawable.ic_library_link_icon_playlists),
                         label = stringResource(
