@@ -63,7 +63,7 @@ class ArtworkDiagnosticsActivity : Activity() {
     private fun showReport() {
         var platformArtwork: Bitmap? = null
         report.text = buildString {
-            appendLine("ARTWORK REPORT — diagnostic build 2")
+            appendLine("ARTWORK REPORT — fix build 3 / Media3 1.8.0")
             appendLine("Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}")
             appendLine("${Build.MANUFACTURER} ${Build.MODEL}")
             val session = MediaController.mediaSession

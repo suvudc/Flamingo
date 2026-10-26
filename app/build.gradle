@@ -16,7 +16,7 @@ if (localPropertiesFile.exists()) {
 
 android {
     namespace 'yos.music.player'
-    compileSdk 34
+    compileSdk 35
 
     signingConfigs {
         debug {
@@ -57,8 +57,8 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
-            applicationIdSuffix ".artworkdiagnostics"
-            versionNameSuffix "-artwork-diagnostics"
+            applicationIdSuffix ".artworkfix3"
+            versionNameSuffix "-artwork-fix-3"
         }
         release {
             minifyEnabled true
@@ -152,7 +152,9 @@ dependencies {
         exclude group: 'androidx.appcompat'
     }
 
-    def media3_version = "1.4.0"
+    // 1.8.0 builds platform metadata with MediaMetadata.Builder instead of
+    // assuming that platform and compat Parcel layouts are interchangeable.
+    def media3_version = "1.8.0"
     implementation "androidx.media3:media3-session:$media3_version"
     implementation "androidx.media3:media3-exoplayer:$media3_version"
     implementation "androidx.media3:media3-exoplayer-dash:$media3_version"

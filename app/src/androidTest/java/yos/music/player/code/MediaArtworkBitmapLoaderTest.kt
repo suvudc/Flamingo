@@ -73,6 +73,40 @@ class MediaArtworkBitmapLoaderTest {
         assertTrue(loader.decodeBitmap(byteArrayOf(1)).isCancelled)
     }
 
+    @android.annotation.SuppressLint("RestrictedApi")
+    @Test
+    fun platformSessionPreservesArtworkDimensionsFromMedia3Metadata() {
+        val bitmap = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(Color.RED)
+        val metadata = androidx.media3.session.legacy.MediaMetadataCompat.Builder()
+            .putBitmap(androidx.media3.session.legacy.MediaMetadataCompat.METADATA_KEY_ALBUM_ART, bitmap)
+            .build().mediaMetadata
+        // The old Parcel-layout conversion gives Android a one-pixel size limit.
+        // Publishing through a real platform session also exercises system scaling.
+        val session = android.media.session.MediaSession(context, "artwork-regression-test")
+        val received = java.util.concurrent.CountDownLatch(1)
+        var receivedBitmap: Bitmap? = null
+        val controller = session.controller
+        val callback = object : android.media.session.MediaController.Callback() {
+            override fun onMetadataChanged(metadata: android.media.MediaMetadata?) {
+                receivedBitmap = metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
+                received.countDown()
+            }
+        }
+        try {
+            controller.registerCallback(callback, android.os.Handler(android.os.Looper.getMainLooper()))
+            session.setMetadata(metadata)
+            assertTrue("Platform metadata callback timed out", received.await(10, TimeUnit.SECONDS))
+            assertEquals(128, receivedBitmap?.width)
+            assertEquals(128, receivedBitmap?.height)
+            assertEquals(Color.RED, receivedBitmap?.getPixel(0, 0))
+        } finally {
+            controller.unregisterCallback(callback)
+            session.release()
+            bitmap.recycle()
+        }
+    }
+
     private fun png(width: Int, height: Int): ByteArray {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(Color.RED)
