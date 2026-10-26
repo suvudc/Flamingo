@@ -260,9 +260,9 @@ class MainActivity : BaseActivity() {
                         // 逻辑初始化区域
                         val navController = rememberNavController()
                         val navSpec = spring(
-                            stiffness = 400f,
+                            stiffness = 195f,
                             dampingRatio = 1f,
-                            visibilityThreshold = 0.001f
+                            visibilityThreshold = 0.5f
                         )
                         // val scaffoldState = rememberBottomSheetScaffoldState()
                         val route = rememberSaveable(key = "MainActivity_route") {
@@ -308,9 +308,9 @@ class MainActivity : BaseActivity() {
                         }
 
                         suspend fun minimizePlayer(velocity: Float = 0f) {
+                            if (artworkMotion.closing) return
                             artworkMotion.begin(yosBottomSheetConfig.progress)
-                            offsetY.animateTo(0f, initialVelocity = velocity,
-                                animationSpec = if (artworkMotion.closing) tween(420, easing = androidx.compose.animation.core.LinearEasing) else navSpec)
+                            offsetY.animateTo(0f, initialVelocity = velocity, animationSpec = navSpec)
                             playerSheetOpen.value = false
                             artworkMotion.playerOpen = false
                             artworkMotion.reset()
@@ -373,27 +373,10 @@ class MainActivity : BaseActivity() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .graphicsLayer {
-                                        val thisMainContainerCardScale =
-                                            yosBottomSheetConfig.mainContainerCardScale
-                                        scaleX = thisMainContainerCardScale
-                                        scaleY = thisMainContainerCardScale
-                                    }
-                                    .graphicsLayer {
-                                        //compositingStrategy = CompositingStrategy.Offscreen
-                                        //transformOrigin = TransformOrigin(0.5f, 1f)
-
-                                        if (yosBottomSheetConfig.thisShowCorner && !yosBottomSheetConfig.RTCorner) {
-                                            compositingStrategy = CompositingStrategy.Offscreen
-                                            clip = true
-                                            shape = YosRoundedCornerShape(screenCorner.dp)
-                                        } else {
-                                            compositingStrategy = CompositingStrategy.ModulateAlpha
-                                            clip = false
-                                        }
-
-                                        if (!yosBottomSheetConfig.barShowCorner) {
-                                            alpha = 0f
-                                        }
+                                        // Keep the glass backdrop stationary. Scaling its entire offscreen
+                                        // layer invalidated the blur source on every frame of the flight.
+                                        alpha = if (playerSheetOpen.value && !artworkMotion.closing &&
+                                            yosBottomSheetConfig.progress >= 1f) 0f else 1f
                                     }
 
                                 ,
@@ -576,6 +559,7 @@ class MainActivity : BaseActivity() {
                                                     offsetY.snapTo(0f)
                                                     playerSheetOpen.value = true
                                                     offsetY.animateTo(parentHeight.intValue.toFloat(), animationSpec = navSpec)
+                                                    artworkMotion.settled = true
                                                 }
                                             },
                                             nowLabel = { nowLabel.value },
@@ -667,9 +651,9 @@ class MainActivity : BaseActivity() {
                                         if (artworkMotion.closing) {
                                             val q = (p / artworkMotion.startProgress).coerceIn(0f, 1f)
                                             translationY = parentHeight.intValue * (1f - artworkMotion.startProgress) + parentHeight.intValue * .12f * (1f - q)
-                                            alpha = q * q
-                                            scaleX = .96f + .04f * q
-                                            scaleY = scaleX
+                                            alpha = ((q - .15f) / .85f).coerceIn(0f, 1f)
+                                            scaleX = 1f
+                                            scaleY = 1f
                                         } else {
                                             translationY = parentHeight.intValue * (1f - p)
                                             alpha = 1f
@@ -685,6 +669,7 @@ class MainActivity : BaseActivity() {
                                             scope.launch {
                                                 if (playerSheetTargetOpen(yosBottomSheetConfig.progress, velocity)) {
                                                     offsetY.animateTo(parentHeight.intValue.toFloat(), initialVelocity = velocity, animationSpec = navSpec)
+                                                    artworkMotion.settled = true
                                                 } else {
                                                     minimizePlayer(velocity)
                                                 }

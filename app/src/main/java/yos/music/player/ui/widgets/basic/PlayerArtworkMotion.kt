@@ -1,6 +1,8 @@
 package yos.music.player.ui.widgets.basic
 
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -11,24 +13,19 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import yos.music.player.R
-import yos.music.player.code.MediaController
-import yos.music.player.data.objects.MediaViewModelObject
 
 @Stable
 class PlayerArtworkMotion {
     var closing by mutableStateOf(false)
         private set
+    var settled by mutableStateOf(false)
     var playerOpen = false
+    var artworkLayer: GraphicsLayer? = null
     private var source: Rect? = null
     private var thumbnail: Rect? = null
     private var thumbnailCorner = 10f
@@ -55,7 +52,7 @@ class PlayerArtworkMotion {
         startProgress = progress
         closing = true
     }
-    fun reset() { closing = false; source = null; start = null; end = null }
+    fun reset() { closing = false; settled = false; source = null; start = null; end = null }
 }
 
 val LocalPlayerArtworkMotion = staticCompositionLocalOf<PlayerArtworkMotion?> { null }
@@ -66,18 +63,12 @@ fun PlayerArtworkFlight(motion: PlayerArtworkMotion, progress: () -> Float) {
     val source = motion.start ?: return
     val target = motion.end ?: return
     val density = LocalDensity.current
-    val context = LocalContext.current
-    val uri = MediaController.musicPlaying.value?.thumb ?: MediaViewModelObject.bitmap.value
-    val request = remember(context, uri) {
-        ImageRequest.Builder(context).data(uri).memoryCacheKey(uri.toString()).size(512).crossfade(false)
-            .error(R.drawable.placeholder_music_default_artwork).fallback(R.drawable.placeholder_music_default_artwork).build()
-    }
+    val layer = motion.artworkLayer ?: return
     Box(Modifier.fillMaxSize().zIndex(2f)) {
-        AsyncImage(request, null, contentScale = ContentScale.Crop,
-            modifier = Modifier.size(with(density) { source.width.toDp() }, with(density) { source.height.toDp() })
+        Canvas(modifier = Modifier.size(with(density) { source.width.toDp() }, with(density) { source.height.toDp() })
                 .graphicsLayer {
                     val raw = (progress() / motion.startProgress).coerceIn(0f, 1f)
-                    val p = FastOutSlowInEasing.transform(raw)
+                    val p = raw
                     val frame = artworkFlightFrame(source, target, p)
                     transformOrigin = TransformOrigin(0f, 0f)
                     translationX = frame.left
@@ -87,6 +78,6 @@ fun PlayerArtworkFlight(motion: PlayerArtworkMotion, progress: () -> Float) {
                     clip = true
                     val radius = motion.endCorner + (8f - motion.endCorner) * p
                     shape = RoundedCornerShape((radius / scaleX.coerceAtLeast(.01f)).dp)
-                })
+                }) { drawLayer(layer) }
     }
 }

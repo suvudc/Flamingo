@@ -97,6 +97,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -319,9 +322,9 @@ fun NowPlaying(
         val lifecycleState = LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
         val animatedAlbumCoverState = rememberAnimatedAlbumCoverState(
             music = thisMusicPlaying.value,
-            isPlaying = isPlayingStatusLambda(),
+            isPlaying = isPlayingStatusLambda() && LocalPlayerArtworkMotion.current?.closing != true,
             active = nowPageLambda() == Album &&
-                showNowPlaying() &&
+                (LocalPlayerArtworkMotion.current?.settled == true) &&
                 lifecycleState.value.isAtLeast(Lifecycle.State.STARTED)
         )
 
@@ -854,6 +857,11 @@ private fun ColumnScope.Album(
     YosWrapper {
         val dp = (7 + (27 * scale.value)).dp
         val artworkMotion = LocalPlayerArtworkMotion.current
+        val artworkLayer = rememberGraphicsLayer()
+        DisposableEffect(artworkMotion, artworkLayer) {
+            artworkMotion?.artworkLayer = artworkLayer
+            onDispose { artworkMotion?.let { if (it.artworkLayer === artworkLayer) it.artworkLayer = null } }
+        }
         ShadowImageWithCache(
             dataLambda = { music()?.thumb }, contentDescription = null, modifier = Modifier
                 .fillMaxWidth()
@@ -865,7 +873,13 @@ private fun ColumnScope.Album(
                 .padding(start = dp, end = dp, bottom = dp)
                 .then(modifier)
                 .onGloballyPositioned { artworkMotion?.captureSource(it) }
-                .graphicsLayer { alpha = if (artworkMotion?.closing == true) 0f else 1f },
+                .graphicsLayer { alpha = if (artworkMotion?.closing == true) 0f else 1f }
+                .drawWithContent {
+                    if (artworkMotion?.closing != true) {
+                        artworkLayer.record { this@drawWithContent.drawContent() }
+                    }
+                    drawLayer(artworkLayer)
+                },
             imageQuality = ImageQuality.RAW,
             shadowOverlay = true,
             overlayContent = {
@@ -1645,6 +1659,20 @@ private fun Lyric(
     ) {
         YosWrapper {
             Spacer(modifier = Modifier.statusBarsHeight(110.dp))
+
+            val downloadBusy = MediaViewModelObject.lyricsDownloading.value
+            val downloadStatus = MediaViewModelObject.lyricsDownloadStatus.value
+            androidx.compose.material3.TextButton(
+                onClick = { MediaController.downloadLyrics?.invoke() },
+                enabled = !downloadBusy,
+                modifier = Modifier.padding(horizontal = 24.dp)
+            ) {
+                Text(
+                    text = downloadStatus.ifBlank { "Download lyrics for offline use" },
+                    color = Color.White.copy(alpha = .7f),
+                    fontSize = 12.sp
+                )
+            }
 
             YosLyricView(
                 //mediaViewModel = mediaViewModel,

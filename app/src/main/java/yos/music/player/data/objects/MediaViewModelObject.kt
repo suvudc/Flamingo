@@ -16,6 +16,8 @@ object MediaViewModelObject {
     val lyricLineTransliterations = mutableStateListOf<String?>()
     val lyricLineSubtitles = mutableStateListOf<String?>()
     val isTtmlLyrics = mutableStateOf(false)
+    val lyricsDownloadStatus = mutableStateOf("")
+    val lyricsDownloading = mutableStateOf(false)
 
     // var mainLyricLines = mutableStateListOf<AnnotatedString>()
 
