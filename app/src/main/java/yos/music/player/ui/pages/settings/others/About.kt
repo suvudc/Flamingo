@@ -1,16 +1,13 @@
 package yos.music.player.ui.pages.settings.others
 
-import android.util.Base64
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
-import com.blankj.utilcode.util.AppUtils
+import yos.music.player.BuildConfig
 import yos.music.player.R
 import yos.music.player.ui.pages.settings.DefaultItem
 import yos.music.player.ui.pages.settings.GroupSpacer
@@ -34,16 +31,12 @@ fun About(navController: NavController) =
                         val context = LocalContext.current
 
                         ListHeader(content = stringResource(id = R.string.settings_others_about_info))
-                        val appVersion = remember("About_appVersion") {
-                            mutableStateOf(AppUtils.getAppVersionName())
-                        }
-                        val telegramLink = "aHR0cHM6Ly90Lm1lL0ZsYW1pbmdvVXBkYXRlQW5kTmV3cw=="
 
                         RoundColumn {
                             DefaultItem(
                                 title = stringResource(id = R.string.app_name),
                                 onClick = null,
-                                desc = appVersion.value
+                                desc = "${BuildConfig.VERSION_NAME} • Build ${BuildConfig.VERSION_CODE}"
                             )
                         }
 
@@ -52,11 +45,11 @@ fun About(navController: NavController) =
                         ListHeader(content = stringResource(id = R.string.settings_others_about_developers))
                         RoundColumn {
                             LabelItem(
-                                title = "Yos-X (MULTIPLY STUDIO)",
-                                desc = stringResource(id = R.string.settings_others_about_developers_yos_x)
+                                title = "Suvu (@suvudc)",
+                                desc = "Main developer · Music fork"
                             ) {
                                 startWeb(
-                                    url = "https://github.com/Yos-X",
+                                    url = "https://github.com/suvudc",
                                     context
                                 )
                             }
@@ -66,17 +59,24 @@ fun About(navController: NavController) =
 
                         RoundColumn {
                             LabelItem(
-                                title = stringResource(id = R.string.settings_others_about_contact_us),
+                                title = "Music by Suvu on GitHub",
+                                desc = "Source code and project updates",
                                 superLink = true
                             ) {
-                                val linkResult = Base64.decode(telegramLink, Base64.URL_SAFE).decodeToString()
-                                startWeb(
-                                    url = linkResult,
-                                    context
-                                )
+                                startWeb("https://github.com/suvudc/Flamingo/tree/fix/pixel-media-artwork", context)
                             }
                         }
-                        ListHeader(content = stringResource(id = R.string.settings_others_about_contact_us_desc))
+
+                        GroupSpacer()
+                        ListHeader(content = "Open-source credits")
+                        RoundColumn {
+                            LabelItem(
+                                title = "Flamingo · Yos-X / MULTIPLY STUDIO",
+                                desc = "Original project · GNU GPL v3"
+                            ) {
+                                startWeb("https://github.com/suvudc/Flamingo/blob/fix/pixel-media-artwork/LICENSE", context)
+                            }
+                        }
                     }
                 }
             }

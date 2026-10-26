@@ -46,3 +46,17 @@ missing cover keeps its ordinary slide instead of permitting two animations.
 The cover's flight and the controls fade are separate: controls are gone by
 65% remaining travel while the page appears gradually, avoiding ghost titles
 and transport controls over library rows. No lyrics/provider/layout redesign.
+
+## Build 21 About and UI polish
+
+About now shows Suvu (@suvudc) as the main developer of the Music fork, opens
+the user's GitHub profile and current source branch, and displays the build
+number. The former Telegram contact is removed from About. Original Flamingo
+attribution and the GPL license remain in a separate open-source credits row.
+
+Dock folding observes actual consumed user scrolling; dragging into overscroll
+on a stationary or empty list no longer changes the dock. Global search tags
+results with their query and library snapshot so previous matches cannot remain
+clickable while a new query is being debounced. Loading and empty states are
+distinct. Playback selection prevents duplicate preparation, waits before
+dismissing, and shows a recoverable failure instead of propagating an exception.

@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -26,43 +27,74 @@ import yos.music.player.code.MediaController
 import yos.music.player.data.libraries.*
 import yos.music.player.ui.theme.isFlamingoInDarkMode
 
+private data class LibrarySearchResult(
+    val query: String,
+    val source: List<YosMediaItem>,
+    val songs: List<YosMediaItem>
+)
+
 @Composable
 internal fun GlassDockSearch(onDismiss: () -> Unit) {
     val songs = MusicLibrary.songs
     var query by remember { mutableStateOf("") }
-    val results by produceState(emptyList<YosMediaItem>(), songs, query) {
-        delay(150)
-        val input = query.trim()
-        value = withContext(Dispatchers.Default) {
+    val input = query.trim()
+    val search by produceState<LibrarySearchResult?>(null, songs, input) {
+        if (input.isNotEmpty()) delay(150)
+        val matching = withContext(Dispatchers.Default) {
             songs.asSequence().filter { input.isEmpty() ||
                 it.title.orEmpty().contains(input, true) || it.artistsName.orEmpty().contains(input, true) ||
                 it.album.orEmpty().contains(input, true) }.distinctBy { it.uri }.take(100).toList()
         }
+        value = LibrarySearchResult(input, songs, matching)
     }
+    // produceState retains its previous value until the replacement search completes.
+    // Do not let the previous query's rows stay visible or clickable in that interval.
+    val currentSearch = search?.takeIf { it.query == input && it.source == songs }
+    val searching = currentSearch == null
+    val results = currentSearch?.songs.orEmpty()
+    var preparing by remember { mutableStateOf(false) }
+    var playbackError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     val dark = isFlamingoInDarkMode()
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false,
+    Dialog(onDismissRequest = { if (!preparing) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false,
         decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize(), color = if (dark) Color.Black else Color.White,
             contentColor = if (dark) Color.White else Color.Black) {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().padding(12.dp)) {
-                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.ArrowBack, "Close search") }
-                    OutlinedTextField(query, { query = it }, modifier = Modifier.weight(1f).focusRequester(focus),
+                    IconButton(onClick = onDismiss, enabled = !preparing) { Icon(Icons.Rounded.ArrowBack, "Close search") }
+                    OutlinedTextField(query, { query = it; playbackError = null }, enabled = !preparing, modifier = Modifier.weight(1f).focusRequester(focus),
                         singleLine = true, placeholder = { Text("Search songs, artists, albums") },
                         shape = RoundedCornerShape(28.dp), leadingIcon = { Icon(Icons.Rounded.Search, null) })
                 }
+                if (preparing) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
                 LazyColumn(Modifier.weight(1f)) {
                     items(results, key = { it.uri.toString() }) { song ->
                         ListItem(headlineContent = { Text(song.title ?: defaultTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             supportingContent = { Text(song.artistsName ?: defaultArtistsName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            modifier = Modifier.clickable {
-                                val queue = results
-                                scope.launch { MediaController.prepare(song, queue); onDismiss() }
+                            modifier = Modifier.clickable(enabled = !preparing && !searching) {
+                                if (!preparing) {
+                                    val queue = results
+                                    preparing = true
+                                    playbackError = null
+                                    scope.launch {
+                                        try {
+                                            MediaController.prepare(song, queue)
+                                            onDismiss()
+                                        } catch (cancelled: CancellationException) {
+                                            throw cancelled
+                                        } catch (_: Exception) {
+                                            playbackError = "Could not play this song. Please try again."
+                                        } finally {
+                                            preparing = false
+                                        }
+                                    }
+                                }
                             })
                     }
-                    if (results.isEmpty()) item { Text(if (query.isBlank()) "No songs in your library" else "No matching songs",
+                    if (results.isEmpty()) item { Text(if (searching) "Searching…" else if (input.isEmpty()) "No songs in your library" else "No matching songs",
                         Modifier.padding(24.dp)) }
                 }
             }

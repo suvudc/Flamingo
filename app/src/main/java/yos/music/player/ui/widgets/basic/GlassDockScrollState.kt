@@ -14,7 +14,7 @@ class GlassDockScrollState(thresholdPx: Float) {
     val connection = object : NestedScrollConnection {
         override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
             if (source == NestedScrollSource.UserInput) {
-                movement.scroll(consumed.y + available.y)?.let { compact.value = it }
+                movement.scroll(consumed.y)?.let { compact.value = it }
             }
             return Offset.Zero // Observe scrolling without consuming or changing the list's fling.
         }
