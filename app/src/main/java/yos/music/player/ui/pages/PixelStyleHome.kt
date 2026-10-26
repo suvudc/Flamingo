@@ -74,12 +74,15 @@ private fun HomeContent(nav: NavController) {
         while (true) { delay(60_000); day = localDay() }
     }
     // Work once per library/day change, never during scrolling or player position updates.
-    val selection by produceState(emptyList<YosMediaItem>(), songs, day) {
+    val selectionState = produceState(emptyList<YosMediaItem>(), songs, day) {
         value = withContext(Dispatchers.Default) {
             songs.distinctBy { it.uri }.sortedBy { it.uri.toString() }
                 .shuffled(Random(day)).take(50)
         }
     }
+    // Freeze this composition's value. Lazy item lambdas execute later, so reading the
+    // State again inside them can pair a loaded selection with an earlier empty cover list.
+    val selection = selectionState.value
     val covers = remember(selection) { selection.distinctBy { it.album to it.artists }.take(5) }
     val daily = remember(selection) { selection.drop(1).ifEmpty { selection } }
     val recent = if (SettingsLibrary.ListenHistory) ListenHistoryManager.recentlyPlayedSongs.value else emptyList()
@@ -181,9 +184,13 @@ private fun HomeContent(nav: NavController) {
 
 @Composable
 private fun HomeCollage(songs: List<YosMediaItem>, onPlay: (YosMediaItem) -> Unit) {
+    // Resolve before BoxWithConstraints' deferred subcomposition; an empty/loading
+    // library must never reach the collage's repeating album positions.
+    val slots = homeCollageSlots(songs)
+    if (slots.isEmpty()) return
     BoxWithConstraints(Modifier.fillMaxWidth().height(400.dp).padding(horizontal = 14.dp)) {
         val unit = minOf(maxWidth, 300.dp)
-        fun song(index: Int) = songs[index % songs.size]
+        fun song(index: Int) = slots[index]
         HomeCover(song(0), Modifier.align(Alignment.TopCenter).offset(y = 4.dp)
             .size(width = unit * .48f, height = unit * .8f).rotate(45f).clip(RoundedCornerShape(50))
             .clickable { onPlay(song(0)) })
