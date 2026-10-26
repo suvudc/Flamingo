@@ -29,6 +29,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
+import androidx.media3.session.CacheBitmapLoader
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
@@ -957,6 +958,7 @@ object MediaController {
 }
 
 class YosPlaybackService : MediaSessionService() {
+    private var artworkBitmapLoader: MediaArtworkBitmapLoader? = null
     private val notificationID = 1145
     private val channelID = "YosMediaControllerChannel"
 
@@ -1504,9 +1506,12 @@ class YosPlaybackService : MediaSessionService() {
             }*/
         }
 
+        val artworkLoader = MediaArtworkBitmapLoader(this)
+        artworkBitmapLoader = artworkLoader
         mediaSession =
             MediaSession
                 .Builder(this, forwardingPlayer)
+                .setBitmapLoader(CacheBitmapLoader(artworkLoader))
                 .setSessionActivity(
                     PendingIntent.getActivity(
                         this,
@@ -1579,6 +1584,8 @@ class YosPlaybackService : MediaSessionService() {
             release()
             mediaSession = null
         }
+        artworkBitmapLoader?.close()
+        artworkBitmapLoader = null
         super.onDestroy()
     }
 
