@@ -146,7 +146,7 @@ private fun HomeContent(nav: NavController) {
                                 HomeCover(song, Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)))
                                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                                     Text(song.title ?: defaultTitle, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                                    Text(song.artistsName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, color = c.onSurfaceVariant)
+                                    Text(song.artistsName ?: defaultArtistsName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, color = c.onSurfaceVariant)
                                 }
                                 Icon(Icons.Rounded.PlayArrow, null, tint = c.onSurfaceVariant)
                             }
@@ -165,7 +165,7 @@ private fun HomeContent(nav: NavController) {
                                     Column(Modifier.width(144.dp).clickable { play(song, recent) }) {
                                         HomeCover(song, Modifier.size(144.dp).clip(RoundedCornerShape(24.dp)))
                                         Text(song.title ?: defaultTitle, Modifier.padding(top = 8.dp, start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                                        Text(song.artistsName, Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, color = c.onSurfaceVariant, fontSize = 12.sp)
+                                        Text(song.artistsName ?: defaultArtistsName, Modifier.padding(start = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, color = c.onSurfaceVariant, fontSize = 12.sp)
                                     }
                                 }
                             }
