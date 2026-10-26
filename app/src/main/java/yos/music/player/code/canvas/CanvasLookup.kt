@@ -9,8 +9,8 @@ internal object CanvasLookup {
 
     fun queries(title: String?, artist: String?, albumArtist: String?, album: String?): List<Query> {
         val song = clean(title)
-        val trackArtist = meaningful(clean(artist))
-        val releaseArtist = meaningful(clean(albumArtist)).takeUnless {
+        val trackArtist = meaningful(clean(artist).replace("、", ", "))
+        val releaseArtist = meaningful(clean(albumArtist).replace("、", ", ")).takeUnless {
             it?.normalizeForMatch() in setOf("various artists", "various", "va")
         } ?: trackArtist
         val credit = releaseArtist ?: return emptyList()

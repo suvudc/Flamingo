@@ -6,6 +6,13 @@ import yos.music.player.code.canvas.CanvasArtwork
 import yos.music.player.code.canvas.CanvasLookup
 
 class CanvasLookupTest {
+    @Test fun musicArtistSeparatorMatchesCatalogueCollaborations() {
+        val queries = CanvasLookup.queries("Song", "Artist One、Artist Two", null, null)
+        assertEquals("Artist One, Artist Two", queries.single().artist)
+        assertTrue(queries.single().accepts(CanvasArtwork("video", title = "Song", artist = "Artist One & Artist Two")))
+        assertFalse(queries.single().accepts(CanvasArtwork("video", title = "Song", artist = "Artist One")))
+    }
+
     @Test fun absentAlbumStillSearchesByExactSongAndArtist() {
         val queries = CanvasLookup.queries("21 Guns", "Green Day", null, null)
         assertEquals(1, queries.size)
