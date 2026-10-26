@@ -1,4 +1,4 @@
-name: Artwork test APK
+name: Music optimized APK
 
 on:
   push:
@@ -22,25 +22,24 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
-      - name: Create debug signing key
-        run: >-
-          keytool -genkeypair -keystore debug.keystore -storepass android
-          -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048
-          -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-      - name: Build APK and compile artwork tests
-        run: bash gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest --stacktrace
-      - name: Build optimized APK
-        run: bash gradlew :app:assembleOptimized --stacktrace
-      - name: Upload test APK
-        uses: actions/upload-artifact@v4
+      - name: Restore Music test signing key
+        uses: actions/cache@v4
         with:
-          name: Flamingo-artwork-fix-3-apk
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          path: debug.keystore
+          key: music-test-signing-v1
+      - name: Create debug signing key
+        run: |
+          if [ ! -f debug.keystore ]; then
+            keytool -genkeypair -keystore debug.keystore -storepass android \
+              -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+              -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+      - name: Build optimized APK and run unit tests
+        run: bash gradlew :app:assembleOptimized :app:testOptimizedUnitTest --stacktrace
       - name: Upload optimized APK
         uses: actions/upload-artifact@v4
         with:
-          name: Flamingo-optimized-apk
+          name: Music-apk
           path: app/build/outputs/apk/optimized/*.apk
           if-no-files-found: error
       - name: Upload test reports

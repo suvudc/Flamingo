@@ -41,7 +41,7 @@ android {
         applicationId "yos.music.player"
         minSdk 23
         targetSdk 34
-        versionCode 3
+        versionCode 4
         versionName "2.1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -69,7 +69,7 @@ android {
             applicationVariants.all { variant ->
                 if (variant.buildType.name == 'release') {
                     variant.outputs.all {
-                        def appName = "Flamingo"
+                        def appName = "Music"
                         def versionName = variant.versionName
                         def date = new Date().format('yyMMddHHmm')
                         outputFileName = "${appName}_${versionName}_${date}.ApK"
@@ -81,8 +81,8 @@ android {
             initWith release
             // A locally installable build with release optimizations, independent
             // of the diagnostic app and the production signing configuration.
-            applicationIdSuffix ".optimized"
-            versionNameSuffix "-optimized"
+            applicationIdSuffix ".music"
+            versionNameSuffix "-music"
             signingConfig signingConfigs.debug
             debuggable false
             matchingFallbacks = ['release']

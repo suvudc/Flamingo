@@ -680,7 +680,7 @@ class MainActivity : BaseActivity() {
                                             items = listOf(
                                                 NavItem(
                                                     stringResource(id = R.string.page_home_title),
-                                                    R.drawable.flamingo_icon
+                                                    R.drawable.music_note
                                                 ),
                                                 NavItem(
                                                     stringResource(id = R.string.page_library_title),
