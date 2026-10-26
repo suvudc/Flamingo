@@ -51,5 +51,3 @@
 }
 
 -keep class com.cormor.overscroll.core.OverScrollKt
--keep class yos.music.player.data.discovery.DiscoveryMix { *; }
--keep class yos.music.player.data.discovery.SmartMixRule { *; }

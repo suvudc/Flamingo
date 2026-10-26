@@ -70,7 +70,6 @@ class YosBasicApplication : Application() {
         )
 
         super.onCreate()
-        yos.music.player.widget.WidgetUpdates.start(this)
     }
 }
 

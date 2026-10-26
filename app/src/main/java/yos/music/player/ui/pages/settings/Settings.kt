@@ -37,16 +37,7 @@ fun Settings(navController: NavController) =
             content = {
                 item("settings") {
                     Column(Modifier.fillMaxSize()) {
-                        RoundColumn {
-                            LabelItem(title = "Home & Discovery", desc = "Arrange Home sections and manage mix preferences") {
-                                yos.music.player.ui.pages.discovery.DiscoveryRoutes.open(navController, "home-options")
-                            }
-                            Divider()
-                            LabelItem(title = "Library Tools", desc = "Tags, lyrics, M3U playlists and backups") {
-                                yos.music.player.ui.pages.discovery.DiscoveryRoutes.open(navController, "tools")
-                            }
-                        }
-                        GroupSpacerMedium()
+                        // GroupSpacerMedium()
                         ListHeader(stringResource(id = R.string.page_library_title))
                         RoundColumn {
                             SwitchItem(

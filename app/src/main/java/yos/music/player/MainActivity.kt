@@ -475,16 +475,6 @@ class MainActivity : BaseActivity() {
                                             composable(UI.PlayLists) {
                                                 PlayLists(navController)
                                             }
-                                            composable(
-                                                yos.music.player.ui.pages.discovery.DiscoveryRoutes.pattern,
-                                                arguments = listOf(androidx.navigation.navArgument("key") { defaultValue = "" })
-                                            ) { entry ->
-                                                yos.music.player.ui.pages.discovery.DiscoveryPage(
-                                                    navController,
-                                                    entry.arguments?.getString("page") ?: "mixes",
-                                                    entry.arguments?.getString("key").orEmpty(),
-                                                )
-                                            }
                                             composable(UI.NormalMusic) {
                                                 NormalMusic(navController)
                                             }
