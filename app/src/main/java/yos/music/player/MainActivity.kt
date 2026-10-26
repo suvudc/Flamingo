@@ -251,13 +251,6 @@ class MainActivity : BaseActivity() {
                         contentColor = Color.Black withNight Color.White
                     ) {*/
                         val miniPlayerHeight = 62.dp
-                        val height = remember("MainActivity_height") { mutableIntStateOf(0) }
-
-                        val navHeight = remember("MainActivity_navHeight") {
-                            with(density) {
-                                height.intValue.toDp().plus(miniPlayerHeight)
-                            }
-                        }
                         // 逻辑初始化区域
                         val navController = rememberNavController()
                         val navSpec = spring(
@@ -621,10 +614,7 @@ class MainActivity : BaseActivity() {
                                                     R.drawable.ic_uitabbar_stats
                                                 )
                                             ),
-                                            modifier = Modifier
-                                                .onSizeChanged {
-                                                    height.intValue = it.height
-                                                })
+                                            modifier = Modifier)
                                     }
                                 }
                             }
@@ -646,176 +636,52 @@ class MainActivity : BaseActivity() {
                             }
                         }
 
-                        // 播放条&播放界面
-                        YosWrapper {
-                            if (height.intValue == 0) return@YosWrapper
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .zIndex(if (playerSheetOpen.value) 1f else -1f)
-                                    .onSizeChanged {
-                                        parentHeight.intValue = it.height
-                                    }
-                                    .graphicsLayer {
-                                        //compositingStrategy = CompositingStrategy.Offscreen
-                                        val plus =
-                                            0.07f * yosBottomSheetConfig.progress
-                                        this.scaleX = 0.93f + plus
-                                        this.scaleY = 0.93f + plus
-                                        this.translationY =
-                                            -(height.intValue + 10) * (yosBottomSheetConfig.menuAlpha)
-                                        this.transformOrigin = TransformOrigin(0.5f, 1f)
-                                    },
-                                contentAlignment = Alignment.BottomCenter
-                            ) {
-                                YosWrapper {
-                                    val miniPlayerHeightPx = remember("MainActivity_miniPlayerHeightPx") {
-                                        with(density) {
-                                            miniPlayerHeight.toPx()
-                                        }
-                                    }
-
-                                    val miniPlayerShadow = remember("MainActivity_miniPlayerShadow") {
-                                        with(density) {
-                                            7.5.dp.toPx()
-                                        }
-                                    }
-
-                                    val color = Color.White withNight Color(0xFF1C1C1E)
-
-                                    val dragState = rememberDraggableState { delta ->
-                                        scope.launch {
-                                            offsetY.snapTo((offsetY.value + delta).coerceIn(0f, parentHeight.intValue.toFloat()))
-                                        }
-                                    }
-
-                                    /*.graphicsLayer {
-                                        if (yosBottomSheetConfig.barShowCorner) {
-                                            shadowElevation = 7.5.dp.toPx()
-                                            spotShadowColor = Color.Black.copy(alpha = 0.2f)
-
-                                            *//*compositingStrategy =
-                                                        CompositingStrategy.Offscreen*//*
-                                                }
-                                            }*/
-                                    /*.drawWithContent {
-                                        drawContent()
-                                        drawOutline(
-                                            outline = navShape.createOutline(size, layoutDirection, this),
-                                            color = color.copy(alpha = yosBottomSheetConfig.menuAlpha),
-                                            style = Stroke(width = 0.3.dp.toPx())
-                                        )
-                                    }*/
-
-                                    Surface(
-                                        modifier = Modifier.graphicsLayer {
-                                            translationY =
-                                                ((parentHeight.intValue - miniPlayerHeightPx) * (1 - yosBottomSheetConfig.progress))
-
-                                            if (yosBottomSheetConfig.barShowCorner) {
-                                                shape = YosRoundedCornerShape(
-                                                    roundSize = yosBottomSheetConfig.barShapeValue.dp,
-                                                    mSize = Size(
-                                                        width = size.width,
-                                                        height = (miniPlayerHeightPx + (parentHeight.intValue - miniPlayerHeightPx) * yosBottomSheetConfig.progress)
-                                                    )
-                                                )
-                                                shadowElevation = miniPlayerShadow
-                                                spotShadowColor = Color.Black.copy(alpha = 0.2f)
-                                            }
-                                        }
-                                            .graphicsLayer {
-                                                //translationY = ((parentHeight.intValue - miniPlayerHeightPx) * (1 - yosBottomSheetConfig.progress))
-
-                                                if (yosBottomSheetConfig.barShowCorner) {
-                                                    compositingStrategy = CompositingStrategy.Offscreen
-                                                    clip = true
-                                                    shape = YosRoundedCornerShape(
-                                                        roundSize = yosBottomSheetConfig.barShapeValue.dp,
-                                                        mSize = Size(
-                                                            width = size.width,
-                                                            height = (miniPlayerHeightPx + (parentHeight.intValue - miniPlayerHeightPx) * yosBottomSheetConfig.progress)
-                                                        )
-                                                    )
-                                                } else {
-                                                    compositingStrategy = CompositingStrategy.ModulateAlpha
-                                                    clip = false
-                                                }
-                                            }
-                                            .draggable(
-                                                reverseDirection = true,
-                                                enabled = playerSheetOpen.value,
-                                                orientation = Orientation.Vertical,
-                                                state = dragState,
-                                                onDragStopped = { velocity ->
-                                                    offsetY.updateBounds(
-                                                        0f,
-                                                        parentHeight.intValue.toFloat()
-                                                    )
-                                                    scope.launch {
-                                                        //println("速度：$velocity 高度：${miniPlayerHeight + (parentHeightDp - miniPlayerHeight) * progress}")
-                                                        if (!playerSheetTargetOpen(yosBottomSheetConfig.progress, velocity)) {
-                                                            offsetY.animateTo(
-                                                                0f,
-                                                                initialVelocity = velocity
-                                                            )
-                                                            playerSheetOpen.value = false
-                                                        } else {
-                                                            offsetY.animateTo(
-                                                                parentHeight.intValue.toFloat(),
-                                                                initialVelocity = velocity
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            )
-                                            .layout { measurable, constraints ->
-                                                val placeable = measurable.measure(
-                                                    constraints.copy(
-                                                        minHeight = parentHeight.intValue,
-                                                        maxHeight = parentHeight.intValue
-                                                    )
-                                                )
-                                                layout(
-                                                    placeable.width,
-                                                    placeable.height
-                                                ) {
-                                                    placeable.placeRelative(0, 0)
-                                                }
-                                            },
-                                        color = Color.Transparent
-                                    ) {
-                                        val isPlaying =
-                                            rememberSaveable(key = "MainActivity_isPlaying") {
-                                                MediaViewModelObject.isPlaying
-                                            }
-                                        // NowPlaying
-                                        YosWrapper {
-                                            NowPlaying(
-                                                mainViewModel = mainViewModel,
-                                                mediaViewModel = mediaViewModel,
-                                                navController = navController,
-                                                onMinimizeNowPlaying = {
-                                                    nowPageNowPlaying.value = Album
-                                                    offsetY.animateTo(0f, animationSpec = navSpec)
-                                                    playerSheetOpen.value = false
-                                                },
-                                                isPlayingStatusLambda = { isPlaying.value },
-                                                isPlayingOnChanged = {
-                                                    isPlaying.value = it
-                                                },
-                                                nowPageLambda = { nowPageNowPlaying.value },
-                                                showNowPlaying = { showNowPlaying.value },
-                                                showMiniPlayer = { yosBottomSheetConfig.showMenu }
-                                            ) {
-                                                nowPageNowPlaying.value = it
-                                            }
-                                        }
-
-
-                                    }
+                        // Measure independently; a closed player is not composed or captured by glass.
+                        Spacer(Modifier.fillMaxSize().onSizeChanged { parentHeight.intValue = it.height })
+                        if (playerSheetOpen.value && parentHeight.intValue > 0) {
+                            val dragState = rememberDraggableState { delta ->
+                                scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                    offsetY.snapTo((offsetY.value + delta).coerceIn(0f, parentHeight.intValue.toFloat()))
                                 }
+                            }
+                            Surface(
+                                modifier = Modifier.fillMaxSize().zIndex(1f)
+                                    .graphicsLayer {
+                                        translationY = parentHeight.intValue * (1f - yosBottomSheetConfig.progress)
+                                    }
+                                    .draggable(
+                                        orientation = Orientation.Vertical,
+                                        reverseDirection = true,
+                                        state = dragState,
+                                        onDragStopped = { velocity ->
+                                            scope.launch {
+                                                if (playerSheetTargetOpen(yosBottomSheetConfig.progress, velocity)) {
+                                                    offsetY.animateTo(parentHeight.intValue.toFloat(), initialVelocity = velocity, animationSpec = navSpec)
+                                                } else {
+                                                    offsetY.animateTo(0f, initialVelocity = velocity, animationSpec = navSpec)
+                                                    playerSheetOpen.value = false
+                                                }
+                                            }
+                                        }
+                                    ),
+                                color = Color.White withNight Color.Black
+                            ) {
+                                val isPlaying = MediaViewModelObject.isPlaying
+                                NowPlaying(
+                                    mainViewModel = mainViewModel,
+                                    mediaViewModel = mediaViewModel,
+                                    navController = navController,
+                                    onMinimizeNowPlaying = {
+                                        nowPageNowPlaying.value = Album
+                                        offsetY.animateTo(0f, animationSpec = navSpec)
+                                        playerSheetOpen.value = false
+                                    },
+                                    isPlayingStatusLambda = { isPlaying.value },
+                                    isPlayingOnChanged = { isPlaying.value = it },
+                                    nowPageLambda = { nowPageNowPlaying.value },
+                                    showNowPlaying = { showNowPlaying.value },
+                                    showMiniPlayer = { yosBottomSheetConfig.showMenu }
+                                ) { nowPageNowPlaying.value = it }
                             }
                         }
 

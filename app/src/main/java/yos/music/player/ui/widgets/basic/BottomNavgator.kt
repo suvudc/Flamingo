@@ -64,9 +64,7 @@ fun BottomNavigator(
         spring(dampingRatio = 1f, stiffness = 400f), label = "Dock collapse")
     var search by remember { mutableStateOf(false) }
     val selected = items.indexOfFirst { it.label == nowLabel() }.coerceAtLeast(0)
-    Box(Modifier.fillMaxWidth().graphicsLayer { alpha = opacity() }) {
-        // Preserve the existing full-player geometry: this measures only the navigation area.
-        Spacer(modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsHeight(74.dp))
+    Box(modifier.fillMaxWidth().graphicsLayer { alpha = opacity() }) {
         BoxWithConstraints(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)
             .height((132f - 76f * morph).dp)) {
             val miniX = 52.dp * morph
