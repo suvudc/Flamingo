@@ -73,6 +73,13 @@ internal fun rememberDiscoveryMixes(): List<DiscoveryMix> {
 }
 
 @Composable
+private fun rememberDiscoveryFolders(): Map<String, List<YosMediaItem>> {
+    val context = LocalContext.current
+    val songs = MusicLibrary.songs
+    return produceState(emptyMap<String, List<YosMediaItem>>(), songs) { value = DiscoveryFolders.groups(context.applicationContext, songs) }.value
+}
+
+@Composable
 fun DiscoveryHome(nav: NavController) {
     val songs = MusicLibrary.songs
     val mixes = rememberDiscoveryMixes()
@@ -123,7 +130,7 @@ fun DiscoveryHome(nav: NavController) {
                     }
                 }
                 "recent" -> if (SettingsLibrary.ListenHistory && recentSongs.isNotEmpty()) item("recent") {
-                    SectionHeading("Recently Played", "See all") { DiscoveryRoutes.collection(nav, "Recently Played", recentSongs) }
+                    SectionHeading("Recently Played", "See all") { DiscoveryRoutes.open(nav, "history") }
                     SongCarousel(recentSongs.take(12)) { song -> scope.launch { MediaController.prepare(song, recentSongs) } }
                 }
                 "added" -> if (songs.isNotEmpty()) item("added") {
@@ -246,6 +253,7 @@ fun DiscoveryPage(nav: NavController, page: String, key: String) {
         "smart-edit" -> SmartEditor(nav, key)
         "tools" -> LibraryTools(nav)
         "editor" -> LocalTrackEditor(nav, key)
+        "history" -> ListeningHistory(nav)
         "mix", "mixes" -> MixBrowser(nav, if (page == "mix") key else "")
         else -> CollectionBrowser(nav, page, key)
     }
@@ -305,8 +313,7 @@ private fun HomeOptions(nav: NavController) {
 @Composable
 private fun CollectionBrowser(nav: NavController, page: String, folderPath: String) {
     val songs = MusicLibrary.songs
-    val visibleUris = remember(songs) { songs.map { it.uri }.toHashSet() }
-    val folders = remember(MusicLibrary.folders, visibleUris) { MusicLibrary.folders.map { item -> item.path.trimEnd('/') to item.songs.filter { it.uri in visibleUris } }.filter { it.second.isNotEmpty() }.toMap() }
+    val folders = if (page == "folders") rememberDiscoveryFolders() else emptyMap()
     val root = remember(folders.keys) { DiscoveryEngine.commonFolderRoot(folders.keys.toList()) }
     val current = folderPath.ifBlank { root }
     val inFolder = remember(folders, current) { folders.filterKeys { it == current || it.startsWith("${current.trimEnd('/')}/") }.values.flatten().distinctBy { it.uri } }
@@ -353,7 +360,8 @@ private fun GlobalSearch(nav: NavController) {
         "Albums" -> results.groupBy { it.album ?: defaultAlbum }; "Artists" -> results.groupBy { it.artistsName ?: defaultArtistsName }
         "Genres" -> results.groupBy { it.genre ?: "Unknown Genre" }; else -> emptyMap()
     } }
-    val folderMatches = remember(query, MusicLibrary.folders) { MusicLibrary.folders.filter { item -> DiscoveryEngine.normalize(item.path).contains(DiscoveryEngine.normalize(query)) } }
+    val folders = if (kind == "Folders") rememberDiscoveryFolders() else emptyMap()
+    val folderMatches = remember(query, folders) { folders.entries.filter { DiscoveryEngine.normalize(it.key).contains(DiscoveryEngine.normalize(query)) } }
     val playlists = remember(query, PlayListLibrary.playList) { PlayListLibrary.playList.filter { DiscoveryEngine.normalize(it.name).contains(DiscoveryEngine.normalize(query)) } }
     Title("Search", onBack = { nav.popBackStack() }) {
         item("search") {
@@ -374,8 +382,8 @@ private fun GlobalSearch(nav: NavController) {
                 }
             }
             if (shown < results.size) item("more") { TextButton({ shown += 100 }, Modifier.padding(16.dp)) { Text("Show more (${results.size} matches)") } }
-        } else if (kind == "Folders") items(folderMatches, key = { it.path }) { folder ->
-            NavigationRow(folder.path.substringAfterLast('/'), folder.path, Icons.Rounded.Folder) { DiscoveryPreferences.rememberSearch(query); DiscoveryRoutes.open(nav, "folders", folder.path) }
+        } else if (kind == "Folders") items(folderMatches, key = { it.key }) { folder ->
+            NavigationRow(folder.key.substringAfterLast('/'), "${folder.key} · ${folder.value.size} songs", Icons.Rounded.Folder) { DiscoveryPreferences.rememberSearch(query); DiscoveryRoutes.open(nav, "folders", folder.key) }
         } else if (kind == "Playlists") items(playlists, key = { it.listID }) { playlist ->
             NavigationRow(playlist.name, "${playlist.songDataList.size} songs", Icons.Rounded.QueueMusic) {
                 DiscoveryPreferences.rememberSearch(query)
@@ -444,3 +452,40 @@ private fun SmartEditor(nav: NavController, id: String) {
 
 @Composable
 internal fun DiscoveryField(label: String, value: String, onChange: (String) -> Unit) = OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = true, shape = RoundedCornerShape(14.dp))
+
+
+@Composable
+private fun ListeningHistory(nav: NavController) {
+    val songs = MusicLibrary.songs
+    val events = ListenStatsManager.statsEvents.value
+    var period by rememberSaveable { mutableStateOf(StatsPeriod.AllTime.name) }
+    var shown by remember(period) { mutableIntStateOf(100) }
+    val selected = StatsPeriod.valueOf(period)
+    val scope = rememberCoroutineScope()
+    val records = produceState(emptyList<Pair<Long, YosMediaItem>>(), songs, events, selected) {
+        value = withContext(Dispatchers.Default) {
+            val index = songs.associateBy { it.uri.toString() }
+            val start = ListenStatsLibrary.periodStartMs(selected)
+            events.asSequence().filter { it.countsAsPlay && it.timestampMs >= start }.sortedByDescending { it.timestampMs }
+                .mapNotNull { event -> index[event.uri]?.let { event.timestampMs to it } }.toList()
+                .ifEmpty { if (selected == StatsPeriod.AllTime) ListenHistoryManager.recentlyPlayedSongs.value.filter { it.uri.toString() in index }.map { 0L to it } else emptyList() }
+        }
+    }.value
+    Title("Listening History", onBack = { nav.popBackStack() }) {
+        item("periods") {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(StatsPeriod.Today to "Today", StatsPeriod.ThisWeek to "This Week", StatsPeriod.ThisMonth to "This Month", StatsPeriod.AllTime to "All Time").forEach { (value, label) ->
+                    FilterChip(selected == value, { period = value.name }, label = { Text(label) })
+                }
+            }
+        }
+        itemsIndexed(records.take(shown), key = { index, record -> "$index:${record.first}:${record.second.uri}" }) { _, record ->
+            Column {
+                if (record.first > 0) Text(java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(record.first)), Modifier.padding(start = 22.dp, top = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                MusicList(record.second, navController = nav) { scope.launch { MediaController.prepare(record.second, listOf(record.second)) } }
+            }
+        }
+        if (shown < records.size) item("more") { TextButton({ shown += 100 }, Modifier.padding(20.dp)) { Text("Show more history") } }
+        if (records.isEmpty()) item("empty") { Text("No recorded plays in this period yet.", Modifier.padding(22.dp)) }
+    }
+}

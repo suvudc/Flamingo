@@ -73,6 +73,12 @@ fun LibraryTools(nav: NavController) {
             NavigationRow("Export a Playlist", "Save a portable M3U file", Icons.Rounded.FileUpload) { if (!busy) chooseExport = true }
             NavigationRow("Export Music Backup", "Playlists, favorites, listening stats, smart rules and Home layout", Icons.Rounded.Backup) { if (!busy) exportBackup.launch("Music-backup.json") }
             NavigationRow("Restore Music Backup", "Merge a backup with your library; existing playlists are kept", Icons.Rounded.Restore) { if (!busy) importBackup.launch(arrayOf("application/json", "text/plain")) }
+            NavigationRow("Add Home-screen Widget", "Artwork and playback controls for your launcher", Icons.Rounded.Widgets) {
+                val manager = android.appwidget.AppWidgetManager.getInstance(context)
+                if (android.os.Build.VERSION.SDK_INT >= 26 && manager.isRequestPinAppWidgetSupported) {
+                    manager.requestPinAppWidget(android.content.ComponentName(context, yos.music.player.widget.MusicWidget::class.java), null, null)
+                } else message = "Long-press an empty space on your Home screen, open Widgets, then choose Music."
+            }
             NavigationRow("Scan Library", "Refresh local files and metadata", Icons.Rounded.Refresh) { if (!busy) runOperation { MusicLibrary.scanMedia(context); "Library refreshed: ${MusicLibrary.songs.size} songs." } }
             NavigationRow("Folder Filtering", "Choose the folders and short audio included in your library", Icons.Rounded.Folder) { nav.toUI(UI.Settings.LibraryOverview) }
             NavigationRow("Artist Parsing", "Set separators and artist-name exceptions", Icons.Rounded.Person) { nav.toUI(UI.Settings.ArtistSplit) }
@@ -121,13 +127,15 @@ fun LocalTrackEditor(nav: NavController, id: String) {
         withContext(Dispatchers.IO) {
             context.contentResolver.openFileDescriptor(uri, "rw")?.use { descriptor ->
                 val metadata = TagLib.getMetadata(descriptor.dup().detachFd(), false) ?: error("This audio format cannot be edited.")
-                val properties = metadata.propertyMap.toMutableMap()
+                val properties = HashMap(metadata.propertyMap)
                 values.forEach { (key, value) -> if (value.isBlank()) properties.remove(key) else properties[key] = arrayOf(value) }
                 check(TagLib.savePropertyMap(descriptor.dup().detachFd(), properties)) { "The audio format rejected these changes." }
             } ?: error("Cannot open audio file for writing.")
             val path = AudioMetadataUtils.resolveLocalAudioFilePath(context, song.uri)
-            if (path != null) suspendCancellableCoroutine<Unit> { continuation ->
-                MediaScannerConnection.scanFile(context, arrayOf(path), null) { _, _ -> if (continuation.isActive) continuation.resume(Unit) }
+            if (path != null) kotlinx.coroutines.withTimeoutOrNull(10_000) {
+                suspendCancellableCoroutine<Unit> { continuation ->
+                    MediaScannerConnection.scanFile(context, arrayOf(path), null) { _, _ -> if (continuation.isActive) continuation.resume(Unit) }
+                }
             }
             MusicLibrary.scanMedia(context)
         }

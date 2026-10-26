@@ -1,0 +1,16 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="16dp" android:background="@drawable/music_widget_background">
+    <LinearLayout android:id="@+id/widget_info" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical" android:orientation="horizontal">
+        <ImageView android:id="@+id/widget_art" android:layout_width="54dp" android:layout_height="54dp" android:scaleType="centerCrop" android:src="@mipmap/music_launcher" android:contentDescription="Album artwork" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="14dp" android:orientation="vertical">
+            <TextView android:id="@+id/widget_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Music" android:textStyle="bold" android:textColor="#FFFFFFFF" android:textSize="17sp" android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/widget_artist" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Your local music" android:textColor="#BFFFFFFF" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center">
+        <TextView android:id="@+id/widget_previous" android:layout_width="60dp" android:layout_height="48dp" android:gravity="center" android:text="|◀" android:textSize="23sp" android:textColor="#FFFFFFFF" android:contentDescription="Previous song" />
+        <TextView android:id="@+id/widget_play" android:layout_width="70dp" android:layout_height="48dp" android:gravity="center" android:text="▶" android:textSize="26sp" android:textColor="#FFFF527E" android:contentDescription="Play" />
+        <TextView android:id="@+id/widget_next" android:layout_width="60dp" android:layout_height="48dp" android:gravity="center" android:text="▶|" android:textSize="23sp" android:textColor="#FFFFFFFF" android:contentDescription="Next song" />
+    </LinearLayout>
+</LinearLayout>

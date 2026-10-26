@@ -67,7 +67,7 @@ object DiscoveryActions {
             add("songs", JsonArray().apply { playlist.songDataList.forEach { add(it.toString()) } })
         }) } })
         add("favorites", JsonArray().apply { FavPlayListLibrary.favPlayList.forEach { add(it.uri.toString()) } })
-        add("stats", JsonParser.parseString(ListenStatsManager.exportEventsAsJson()))
+        add("stats", com.google.gson.Gson().toJsonTree((ListenStatsManager.statsEvents.value + ListenStatsManager.liveSessionEvents.value).distinctBy { "${it.uri}|${it.timestampMs}|${it.dayStartMs}" }))
         addProperty("smartRules", DiscoveryPreferences.rulesJson); addProperty("homeOrder", DiscoveryPreferences.sectionOrder)
         addProperty("hiddenSections", DiscoveryPreferences.hiddenSections); addProperty("excludedMixSongs", DiscoveryPreferences.excludedJson)
     }.toString()
@@ -89,6 +89,9 @@ object DiscoveryActions {
             val event = e.asJsonObject
             require((event.get("listenedMs")?.asLong ?: 0L) >= 0 && (event.get("timestampMs")?.asLong ?: 0L) >= 0) { "Invalid listening event." }
         } }
+        val homeOrder = root.get("homeOrder")?.asString?.split(',')?.filter { it in DiscoveryPreferences.sectionTitles }?.joinToString(",")
+        val hiddenSections = root.get("hiddenSections")?.asString?.split(',')?.filter { it in DiscoveryPreferences.sectionTitles }?.joinToString(",")
+        val excluded = root.get("excludedMixSongs")?.asString?.let { com.google.gson.Gson().fromJson(it, Array<String>::class.java).toList() }.orEmpty()
         var created = 0; var missing = 0
         playlists.forEach { (name, ids, data) ->
             val songs = ids.mapNotNull { id -> index[id].also { if (it == null) missing++ } }
@@ -102,8 +105,10 @@ object DiscoveryActions {
         }
         favorites.mapNotNull { index[it] }.forEach { FavPlayListLibrary.addMusic(it) }
         rules.forEach { DiscoveryPreferences.saveRule(it) }
-        root.get("homeOrder")?.asString?.let { order -> DiscoveryPreferences.sectionOrder = order.split(',').filter { it in DiscoveryPreferences.sectionTitles }.joinToString(",") }
-        root.get("hiddenSections")?.asString?.let { DiscoveryPreferences.hiddenSections = it.split(',').filter { value -> value in DiscoveryPreferences.sectionTitles }.joinToString(",") }
+        homeOrder?.let { DiscoveryPreferences.sectionOrder = it }
+        hiddenSections?.let { DiscoveryPreferences.hiddenSections = it }
+        DiscoveryPreferences.excludedJson = com.google.gson.Gson().toJson(excluded.filter { it in index })
+        DiscoveryPreferences.mixRevision++
         if (stats != null) ListenStatsManager.importEventsFromJson(stats.toString(), false)
         return "Restored $created playlists, favorites and Home preferences. $missing unavailable song entries were skipped."
     }

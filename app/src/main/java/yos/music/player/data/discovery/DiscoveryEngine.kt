@@ -97,7 +97,7 @@ object DiscoveryEngine {
             val album = normalize(song.album); val genre = normalize(song.genre)
             val all = "$title $artist $album $genre ${song.year}"
             if (!tokens.all { it in all }) return@mapNotNull null
-            val score = tokens.sumOf { if (it == title) 10 else if (title.startsWith(it)) 7 else if (it in title) 5 else if (it in artist) 3 else 1 }
+            val score: Int = tokens.fold(0) { total, token -> total + if (token == title) 10 else if (title.startsWith(token)) 7 else if (token in title) 5 else if (token in artist) 3 else 1 }
             Triple(song.id, score, title)
         }.sortedWith(compareByDescending<Triple<String, Int, String>> { it.second }.thenBy { it.third }).map { it.first }.distinct()
     }
