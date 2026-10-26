@@ -12,6 +12,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -24,6 +25,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import yos.music.player.code.AnimatedArtworkLibrary
 import yos.music.player.data.libraries.SettingsLibrary
@@ -34,7 +36,8 @@ import java.io.File
 class AnimatedAlbumCoverState internal constructor(
     internal val player: ExoPlayer?,
     internal val isPlaying: Boolean,
-    internal val videoPrepared: Boolean
+    internal val videoPrepared: Boolean,
+    internal val videoAspectRatio: Float = 1f,
 )
 
 @Composable
@@ -70,6 +73,7 @@ fun rememberAnimatedAlbumCoverState(
     val artworkUri = remember(artworkFile) { Uri.fromFile(artworkFile) }
     val latestIsPlaying = rememberUpdatedState(isPlaying)
     var videoPrepared by remember(artworkFile) { mutableStateOf(false) }
+    var videoAspectRatio by remember(artworkFile) { mutableFloatStateOf(1f) }
     val player = remember(artworkFile) {
         ExoPlayer.Builder(context.applicationContext).build().apply {
             volume = 0f
@@ -87,6 +91,15 @@ fun rememberAnimatedAlbumCoverState(
     {
         val listener = object : Player.Listener
         {
+            override fun onVideoSizeChanged(videoSize: VideoSize)
+            {
+                val width = videoSize.width * videoSize.pixelWidthHeightRatio
+                if (width.isFinite() && width > 0f && videoSize.height > 0)
+                {
+                    videoAspectRatio = width / videoSize.height
+                }
+            }
+
             override fun onRenderedFirstFrame()
             {
                 videoPrepared = true
@@ -120,7 +133,7 @@ fun rememberAnimatedAlbumCoverState(
         if (isPlaying) {player.play()} else {player.pause()}
     }
 
-    return AnimatedAlbumCoverState(player, isPlaying, videoPrepared)
+    return AnimatedAlbumCoverState(player, isPlaying, videoPrepared, videoAspectRatio)
 }
 
 @Composable
@@ -168,3 +181,4 @@ fun BoxScope.AnimatedAlbumCoverOverlay(state: AnimatedAlbumCoverState)
             }
     )
 }
+
