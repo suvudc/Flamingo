@@ -411,7 +411,7 @@ class MainActivity : BaseActivity() {
                                             )
                                         AnimatedNavHost(
                                             modifier = Modifier.then(
-                                                if (SettingsLibrary.BarBlurEffect && !showNowPlaying.value) {
+                                                if (!showNowPlaying.value && (SettingsLibrary.BarBlurEffect || Build.VERSION.SDK_INT >= 31)) {
                                                     Modifier.haze(state = hazeState)
                                                 } else {
                                                     //println("haze 父控件效果关闭")
@@ -569,76 +569,8 @@ class MainActivity : BaseActivity() {
                                             .fillMaxSize(),
                                         contentAlignment = Alignment.BottomCenter
                                     ) {
-                                        // 背景
-                                        if (!showNowPlaying.value && SettingsLibrary.BarBlurEffect) {
-                                            Spacer(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .navigationBarsHeight(128.dp)
-                                                    .graphicsLayer {
-                                                        compositingStrategy =
-                                                            CompositingStrategy.Offscreen
-                                                    }
-                                                    .hazeChild(
-                                                        hazeState,
-                                                        HazeMaterials
-                                                            .regular(
-                                                                color
-                                                            )
-                                                            .copy(
-                                                                blurRadius = 48.dp
-                                                            )
-                                                    )
-                                                    .drawWithCache {
-                                                        onDrawWithContent {
-                                                            val colors = listOf(
-                                                                Color.Transparent,
-                                                                color.copy(alpha = 0.3f),
-                                                                color.copy(alpha = 0.6f),
-                                                                color,
-                                                                color,
-                                                                color,
-                                                                color,
-                                                                color
-                                                            )
-
-                                                            drawContent()
-
-                                                            drawRect(
-                                                                brush = Brush.verticalGradient(
-                                                                    colors
-                                                                ),
-                                                                blendMode = BlendMode.DstIn
-                                                            )
-                                                        }
-                                                    }
-                                            )
-                                        } else {
-                                            //println("haze 底栏效果关闭")
-                                            Spacer(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .navigationBarsHeight(128.dp)
-                                                    .background(
-                                                        brush = Brush.verticalGradient(
-                                                            colors = listOf(
-                                                                Color.Transparent,
-                                                                color.copy(alpha = 0.3f),
-                                                                color.copy(alpha = 0.6f),
-                                                                color,
-                                                                color,
-                                                                color,
-                                                                color,
-                                                                color
-                                                            ),
-                                                            startY = 0f,
-                                                            endY = Float.POSITIVE_INFINITY
-                                                        )
-                                                    )
-                                            )
-                                        }
-
                                         BottomNavigator(
+                                            hazeState = hazeState,
                                             nowLabel = { nowLabel.value },
                                             onLabelChange = {
                                                 nowLabel.value = it
