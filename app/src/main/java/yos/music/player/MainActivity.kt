@@ -160,6 +160,9 @@ import yos.music.player.ui.theme.YosMusicTheme
 import yos.music.player.ui.theme.YosRoundedCornerShape
 import yos.music.player.ui.theme.isFlamingoInDarkMode
 import yos.music.player.ui.theme.withNight
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.zIndex
+import yos.music.player.ui.widgets.basic.rememberGlassDockScrollState
 import yos.music.player.ui.widgets.basic.BottomNavigator
 import yos.music.player.ui.widgets.basic.ImageQuality
 import yos.music.player.ui.widgets.basic.NavItem
@@ -306,6 +309,8 @@ class MainActivity : BaseActivity() {
                             }
 
                         val hazeState = remember { HazeState() }
+                        val glassDock = rememberGlassDockScrollState()
+                        LaunchedEffect(route.value) { glassDock.expand() }
                         YosWrapper {
                             val isNight = isFlamingoInDarkMode()
                             if (showNowPlaying.value) {
@@ -412,7 +417,7 @@ class MainActivity : BaseActivity() {
                                                 easing = EaseOutQuart
                                             )
                                         AnimatedNavHost(
-                                            modifier = Modifier.then(
+                                            modifier = Modifier.nestedScroll(glassDock.connection).then(
                                                 if (!showNowPlaying.value && (SettingsLibrary.BarBlurEffect || Build.VERSION.SDK_INT >= 31)) {
                                                     Modifier.haze(state = hazeState)
                                                 } else {
@@ -549,6 +554,11 @@ class MainActivity : BaseActivity() {
                                     ) {
                                         BottomNavigator(
                                             hazeState = hazeState,
+                                            dockState = glassDock,
+                                            opacity = { yosBottomSheetConfig.menuAlpha },
+                                            onExpandPlayer = {
+                                                scope.launch { offsetY.animateTo(parentHeight.intValue.toFloat(), animationSpec = navSpec) }
+                                            },
                                             nowLabel = { nowLabel.value },
                                             onLabelChange = {
                                                 nowLabel.value = it
@@ -633,6 +643,7 @@ class MainActivity : BaseActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    .zIndex(if (yosBottomSheetConfig.progress > 0f) 1f else -1f)
                                     .onSizeChanged {
                                         parentHeight.intValue = it.height
                                     }
