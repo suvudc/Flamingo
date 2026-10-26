@@ -168,7 +168,8 @@ private fun MiniSongPill(morph: Float, ink: Color, onExpand: () -> Unit) {
             }, onDragEnd = { if (vertical < -24.dp.toPx()) onExpand() })
         }.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size((40f - 4f * morph).dp)
-            .onGloballyPositioned { artworkMotion?.captureThumbnail(it, 10f + 10f * morph) }.clip(RoundedCornerShape((10f + 10f * morph).dp))
+            .onGloballyPositioned { artworkMotion?.captureThumbnail(it, 10f + 10f * morph) }
+            .graphicsLayer { alpha = if (artworkMotion?.closing == true) 0f else 1f }.clip(RoundedCornerShape((10f + 10f * morph).dp))
             .background(ink.copy(alpha = .1f)), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.MusicNote, null, tint = ink.copy(alpha = .7f))
             AsyncImage(request, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -197,3 +198,4 @@ private fun MiniSongPill(morph: Float, ink: Color, onExpand: () -> Unit) {
         }
     }
 }
+
