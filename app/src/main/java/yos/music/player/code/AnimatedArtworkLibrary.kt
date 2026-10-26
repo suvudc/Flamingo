@@ -18,6 +18,7 @@ import yos.music.player.code.canvas.AppleMusicCanvas
 import yos.music.player.code.canvas.TidalCanvas
 import yos.music.player.code.canvas.CommunityCanvas
 import yos.music.player.code.canvas.CanvasArtwork
+import yos.music.player.code.canvas.CanvasLookup
 import yos.music.player.code.canvas.CANVAS_UA
 import yos.music.player.data.libraries.SettingsLibrary
 import yos.music.player.data.libraries.YosMediaItem
@@ -57,15 +58,19 @@ object AnimatedArtworkLibrary
     suspend fun resolveArtworkFile(context: Context, music: YosMediaItem): File? = withContext(Dispatchers.IO)
     {
         if (!SettingsLibrary.AnimatedAlbumCovers) return@withContext null
-        val albumName = music.album?.trim()?.takeIf { it.isNotEmpty() } ?: return@withContext null
+        val albumName = music.album?.trim().orEmpty()
+        val queries = CanvasLookup.queries(music.title, music.artistsName, music.albumArtists, music.album)
         localArtworkFile(context, music)?.takeIf { isPlayableVideoFile(it) }?.let { return@withContext it }
         val artistName = music.albumArtists?.trim()?.takeIf { it.isNotEmpty() }
             ?: music.artistsName?.trim().orEmpty()
-        val identity = cachedArtworkFile(context, music, albumName)
+        val identity = cachedArtworkFile(context, music, CanvasLookup.cacheAlbum(music.album, music.title))
         val directory = File(identity.parentFile, identity.nameWithoutExtension)
+        val trackIdentity = animatedArtworkCacheFile(cacheDirectory(context), artistName, "\u0001track:${music.title}\u0000${music.album}")
+        val trackDirectory = File(trackIdentity.parentFile, trackIdentity.nameWithoutExtension)
 
         storageMutex.withLock {
             // Always read durable downloads before checking network or the online lookup switch.
+            OfflineArtworkStore.cached(trackDirectory)?.let { return@withLock it }
             OfflineArtworkStore.cached(directory)?.let { return@withLock it }
             // Keep covers downloaded by earlier Music builds; migrate out of evictable cache.
             val legacy = File(File(context.cacheDir, AnimatedArtworkCacheDirectoryName), identity.name)
@@ -76,30 +81,34 @@ object AnimatedArtworkLibrary
             if (identity.isFile && normalizeCachedMp4File(identity)) return@withLock identity
             identity.delete()
             if (!SettingsLibrary.AnimatedAlbumCoversUseApi ||
-                SettingsLibrary.isAnimatedAlbumCoverBlacklisted(albumName) || artistName.isBlank() ||
+                SettingsLibrary.isAnimatedAlbumCoverBlacklisted(albumName) || queries.isEmpty() ||
                 !hasNetwork(context)) return@withLock null
 
             val store = OfflineArtworkStore(::readUrlText, ::downloadResource) { file ->
                 normalizeCachedMp4File(file)
             }
-            // The same no-login providers as BitChord. Album-first works with local music metadata.
-            val title = music.title?.trim().orEmpty()
-            val sources: List<() -> CanvasArtwork?> = listOf(
-                { AppleMusicCanvas.searchAlbum(albumName, artistName) },
-                { TidalCanvas.searchAlbum(albumName, artistName) },
-                { CommunityCanvas.searchAlbum(albumName, artistName) },
-                { if (title.isBlank()) null else AppleMusicCanvas.search(title, artistName, albumName) },
-                { if (title.isBlank()) null else TidalCanvas.search(title, artistName, albumName) },
-                { if (title.isBlank()) null else CommunityCanvas.search(title, artistName, albumName) }
-            )
             val tried = mutableSetOf<String>()
-            for ((index, search) in sources.withIndex()) {
-                currentCoroutineContext().ensureActive()
-                val cover = runCatching { search() }.getOrNull() ?: continue
-                if (!cover.matches(if (index < 3) albumName else title, artistName, albumName)) continue
-                for (url in listOfNotNull(cover.url, cover.fallbackUrl)) {
-                    if (!tried.add(url)) continue
-                    store.save(url, directory)?.let { return@withLock it }
+            for (query in queries) {
+                val sources: List<() -> CanvasArtwork?> = if (query.albumSearch) listOf(
+                    { AppleMusicCanvas.searchAlbum(query.name, query.artist) },
+                    { TidalCanvas.searchAlbum(query.name, query.artist) },
+                    { CommunityCanvas.searchAlbum(query.name, query.artist) }
+                ) else listOf(
+                    { AppleMusicCanvas.search(query.name, query.artist, query.album) },
+                    { TidalCanvas.search(query.name, query.artist, query.album) },
+                    { CommunityCanvas.search(query.name, query.artist, query.album) }
+                )
+                for (search in sources) {
+                    currentCoroutineContext().ensureActive()
+                    val cover = runCatching { search() }.getOrNull() ?: continue
+                    if (!query.accepts(cover)) continue
+                    for (url in listOfNotNull(cover.url, cover.fallbackUrl)) {
+                        if (!tried.add(url)) continue
+                        // A title-only fallback may belong to the original release, not the local
+                        // compilation. Keep it per track instead of applying it to the whole album.
+                        store.save(url, if (query.trackSpecific) trackDirectory else directory)
+                            ?.let { return@withLock it }
+                    }
                 }
             }
             null
@@ -174,7 +183,10 @@ object AnimatedArtworkLibrary
         return File(File(songDirectory, AnimatedArtworkDirectoryName), animatedArtworkFileName(albumName))
     }
 
-    internal fun pickBestStreamUrl(masterPlaylistText: String, masterPlaylistUrl: String): String?
+    internal fun pickBestStreamUrl(masterPlaylistText: String, masterPlaylistUrl: String): String? =
+        streamVariantUrls(masterPlaylistText, masterPlaylistUrl).firstOrNull()
+
+    internal fun streamVariantUrls(masterPlaylistText: String, masterPlaylistUrl: String): List<String>
     {
         val playlistLines = masterPlaylistText.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
         val streamVariants = mutableListOf<StreamVariant>()
@@ -196,10 +208,9 @@ object AnimatedArtworkLibrary
         }
 
         return streamVariants
-            .filter { it.isAvc }
-            .ifEmpty { streamVariants }
-            .maxWithOrNull(compareBy<StreamVariant> { it.pixelCount }.thenBy { it.bandwidth })
-            ?.url
+            .sortedWith(compareByDescending<StreamVariant> { it.isAvc }
+                .thenByDescending { it.pixelCount }.thenByDescending { it.bandwidth })
+            .map { it.url }.distinct()
     }
 
     internal fun extractMappedMp4Url(mediaPlaylistText: String, mediaPlaylistUrl: String): String?

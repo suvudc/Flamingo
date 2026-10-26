@@ -135,6 +135,22 @@ class OfflineArtworkStoreTest {
         }
     }
 
+    @Test fun failedLargeRenditionRetriesLowerQualityAndSavesItOffline() = runBlocking {
+        val base = "https://example.com/"
+        val responses = mapOf(
+            "${base}master.m3u8" to "#EXTM3U\n#EXT-X-STREAM-INF:CODECS=\"avc1\",RESOLUTION=2160x2160\nhigh.m3u8\n#EXT-X-STREAM-INF:CODECS=\"avc1\",RESOLUTION=512x512\nlow.m3u8",
+            "${base}high.m3u8" to "#EXTM3U\n#EXTINF:3,\nmissing.ts\n#EXT-X-ENDLIST",
+            "${base}low.m3u8" to "#EXTM3U\n#EXTINF:3,\nsmall.ts\n#EXT-X-ENDLIST",
+            "${base}small.ts" to "frames",
+        )
+        val directory = File(temporary.root, "album")
+        val requests = mutableListOf<String>()
+        assertNotNull(store(responses, requests).save("${base}master.m3u8", directory))
+        assertTrue(requests.contains("${base}high.m3u8"))
+        assertTrue(requests.contains("${base}low.m3u8"))
+        assertNotNull(store(emptyMap()).save("${base}master.m3u8", directory))
+    }
+
     @Test fun invalidMp4DoesNotReplaceStillCover() = runBlocking {
         assertNull(store(mapOf("https://example.com/bad.mp4" to "not video"))
             .save("https://example.com/bad.mp4", File(temporary.root, "album")))

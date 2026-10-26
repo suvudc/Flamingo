@@ -69,18 +69,27 @@ internal class OfflineArtworkStore(
         }
     }
 
-    private suspend fun saveHls(source: String, directory: File) {
-        var playlistUrl = source
-        var playlist = readText(playlistUrl)
-        // Follow master playlists, including a nested master, with a finite depth.
-        repeat(3) {
-            val variant = AnimatedArtworkLibrary.pickBestStreamUrl(playlist, playlistUrl)
-            if (variant != null) {
-                playlistUrl = variant
-                playlist = readText(playlistUrl)
+    private suspend fun saveHls(source: String, directory: File, depth: Int = 0) {
+        if (depth >= 3) throw IOException("Too many nested cover playlists")
+        val playlist = readText(source)
+        val variants = AnimatedArtworkLibrary.streamVariantUrls(playlist, source)
+        if (variants.isNotEmpty()) {
+            // Streaming BitChord can select a lower rendition. Offline download must do so too
+            // when the largest version is unavailable or exceeds the complete-cover size budget.
+            for (variant in variants.take(6)) {
+                currentCoroutineContext().ensureActive()
+                try {
+                    saveHls(variant, directory, depth + 1)
+                    return
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    directory.listFiles().orEmpty().forEach { it.delete() }
+                }
             }
+            throw IOException("No downloadable rendition")
         }
-        val plan = localizePlaylist(playlist, playlistUrl)
+        val plan = localizePlaylist(playlist, source)
         var remaining = MAX_BYTES
         for ((remote, local) in plan.resources) {
             currentCoroutineContext().ensureActive()
