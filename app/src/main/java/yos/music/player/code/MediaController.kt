@@ -1408,12 +1408,14 @@ class YosPlaybackService : MediaSessionService() {
                 }
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    lyricsJob?.cancel()
-                    lyricsUri = null
-                    applyParsedLyrics(emptyParsedLyrics())
-                    MediaViewModelObject.lyricsDownloadStatus.value = ""
-                    MediaViewModelObject.lyricsDownloading.value = false
-                    yos.music.player.code.MediaController.downloadLyrics = null
+                    if (mediaItem?.uri?.toString() != lyricsUri) {
+                        lyricsJob?.cancel()
+                        lyricsUri = null
+                        applyParsedLyrics(emptyParsedLyrics())
+                        MediaViewModelObject.lyricsDownloadStatus.value = ""
+                        MediaViewModelObject.lyricsDownloading.value = false
+                        yos.music.player.code.MediaController.downloadLyrics = null
+                    }
 
                     /*mediaSession?.let { MediaController.sendNotification(it,context) }*/
                     listenHistoryTracker?.onTrackChanged()

@@ -10,6 +10,7 @@ class OnlineLyricsTest {
         assertTrue(parsed.isTtml)
         assertTrue(OnlineLyrics.wordTimed(parsed))
         assertEquals(3000f, parsed.endTimes.first())
+        assertTrue(parsed.entries.first().any { it.first == 2000f && it.second.isEmpty() })
         assertEquals(listOf(1500f, 3000f), parsed.entries.first().filter { it.second.isNotBlank() }.map { it.first })
     }
     @Test fun lineFallbackDoesNotPretendToBeWordTimed() {
