@@ -105,13 +105,16 @@ fun BottomNavigator(
 private fun GlassPill(modifier: Modifier, haze: HazeState?, base: Color, dark: Boolean,
     content: @Composable BoxScope.() -> Unit) {
     val style = remember(base) { HazeStyle(backgroundColor = base,
-        tint = base.copy(alpha = if (dark) .48f else .55f), blurRadius = 12.dp, noiseFactor = 0f) }
+        tint = base.copy(alpha = if (dark) .35f else .44f), blurRadius = 12.dp, noiseFactor = 0f) }
     val background = if (Build.VERSION.SDK_INT >= 31 && haze != null) Modifier.hazeChild(haze, style)
         else Modifier.background(base.copy(alpha = .95f))
     val gloss = remember(dark) { Brush.verticalGradient(listOf(Color.White.copy(alpha = if (dark) .13f else .48f),
         Color.White.copy(alpha = .015f), Color.White.copy(alpha = .04f))) }
     val rim = remember { Brush.linearGradient(listOf(Color.White.copy(alpha = .55f), Color.White.copy(alpha = .10f), Color.White.copy(alpha = .28f))) }
-    Box(modifier.shadow(5.dp, CircleShape).clip(CircleShape).then(background).background(gloss)
+    // Keep a base tint independent of the backdrop renderer. Combined with the
+    // haze tint this retains the original frosting, including after player dismissal.
+    Box(modifier.shadow(5.dp, CircleShape).clip(CircleShape).then(background)
+        .background(base.copy(alpha = .20f)).background(gloss)
         .border(.8.dp, rim, CircleShape), content = content)
 }
 

@@ -417,7 +417,7 @@ class MainActivity : BaseActivity() {
                                             )
                                         AnimatedNavHost(
                                             modifier = Modifier.nestedScroll(glassDock.connection).then(
-                                                if (!showNowPlaying.value && (SettingsLibrary.BarBlurEffect || Build.VERSION.SDK_INT >= 31)) {
+                                                if (SettingsLibrary.BarBlurEffect || Build.VERSION.SDK_INT >= 31) {
                                                     Modifier.haze(state = hazeState)
                                                 } else {
                                                     //println("haze 父控件效果关闭")
