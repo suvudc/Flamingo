@@ -25,8 +25,10 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.EaseOutQuart
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.TweenSpec
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.expandVertically
@@ -48,6 +50,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -185,7 +188,8 @@ import yos.music.player.ui.widgets.basic.SheetAnimatedContent
 import yos.music.player.ui.widgets.basic.SheetNavigationBackward
 import yos.music.player.ui.widgets.basic.SheetNavigationForward
 import yos.music.player.ui.widgets.basic.ActionSheetBody
-import yos.music.player.ui.widgets.basic.NowPlayingArtworkBackground
+import yos.music.player.ui.widgets.basic.AnimatedAlbumCoverState
+import yos.music.player.ui.widgets.basic.AnimatedAlbumCoverOverlay
 import yos.music.player.ui.widgets.basic.ImageQuality
 import yos.music.player.ui.widgets.basic.YosBottomSheetDialog
 import yos.music.player.ui.widgets.basic.rememberAnimatedAlbumCoverState
@@ -378,13 +382,6 @@ fun NowPlaying(
         }
 
 
-        if (nowPageLambda() == Album) {
-            NowPlayingArtworkBackground(
-                artwork = thisMusicPlaying.value?.thumb ?: bitmap.value,
-                animation = animatedAlbumCoverState,
-            )
-        }
-
         // 实际显示区
         YosWrapper {
             /*
@@ -505,9 +502,20 @@ fun NowPlaying(
                                         .clickable(enabled = false, onClick = {})
                                 ) {
                                     YosWrapper {
-                                        Column(Modifier.fillMaxHeight(0.56f)) {
-                                            // Artwork lives edge-to-edge behind the screen, not in a card.
-                                            Spacer(Modifier.weight(1f))
+                                        Column(Modifier.fillMaxHeight(0.595f)) {
+                                            val isVisible = nowPageLambda() == Album
+
+                                            Album(
+                                                modifier = Modifier.sharedElementWithCallerManagedVisibility(
+                                                    sharedContentState = rememberSharedContentState(
+                                                        key = ShareAlbumKey
+                                                    ),
+                                                    visible = isVisible
+                                                ),
+                                                music = { thisMusicPlaying.value },
+                                                animatedAlbumCoverState = animatedAlbumCoverState,
+                                                isPlaying = isPlayingStatusLambda
+                                            )
                                             AnimatedContent(
                                                 targetState = thisMusicPlaying.value,
                                                 transitionSpec = {
@@ -812,6 +820,56 @@ fun NowPlaying(
 
         }
     }
+
+@Composable
+private fun ColumnScope.Album(
+    modifier: Modifier,
+    music: () -> YosMediaItem?,
+    animatedAlbumCoverState: AnimatedAlbumCoverState,
+    isPlaying: () -> Boolean
+) = Box(
+    Modifier
+        .weight(1f)
+        .padding(top = 20.dp)
+        .padding(horizontal = 15.dp)
+        .padding(bottom = 33.dp),
+    contentAlignment = Alignment.BottomCenter
+) {
+    val springSpec: AnimationSpec<Float> = remember("Album_springSpec") {
+        SpringSpec(stiffness = 300f, dampingRatio = 1f, visibilityThreshold = 0.001f)
+    }
+
+    val tweenSpec: AnimationSpec<Float> = remember("Album_tweenSpec") {
+        TweenSpec(durationMillis = 350, easing = EaseOutQuart)
+    }
+
+    val scale = animateFloatAsState(
+        targetValue = if (isPlaying()) 0f else 1f,
+        animationSpec = if (isPlaying()) springSpec else tweenSpec,
+        visibilityThreshold = 0.001f
+    )
+
+    YosWrapper {
+        val dp = (7 + (27 * scale.value)).dp
+        ShadowImageWithCache(
+            dataLambda = { music()?.thumb }, contentDescription = null, modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                    // scaleX = scale.value
+                    // scaleY = scale.value
+                }
+                .padding(start = dp, end = dp, bottom = dp)
+                .then(modifier),
+            imageQuality = ImageQuality.RAW,
+            shadowOverlay = true,
+            overlayContent = {
+                AnimatedAlbumCoverOverlay(animatedAlbumCoverState)
+            }
+        )
+    }
+}
+
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -2837,4 +2895,3 @@ fun formatTime(seconds: Long): String {
     val secs = seconds % 60
     return "$minutes:${if (secs < 10) "0$secs" else "$secs"}"
 }
-
