@@ -695,6 +695,10 @@ fun NowPlaying(
                                         shrinkTowards = Alignment.Top,
                                         targetHeight = { (it / 1.4).toInt() })
                                 ) {
+                                    // An alpha-zero clickable still wins pointer hit testing. This
+                                    // lyrics-only control overlaps the album overflow button, so keep
+                                    // it out of the tree entirely on the album and queue screens.
+                                    if (nowPageLambda() == Lyric) {
                                     YosWrapper {
                                         Row(
                                             Modifier
@@ -754,6 +758,7 @@ fun NowPlaying(
                                                 }
                                             }
                                         }
+                                    }
                                     }
 
                                     PlayerControl(
