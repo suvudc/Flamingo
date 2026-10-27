@@ -79,7 +79,7 @@ fun PlayerArtworkFlight(motion: PlayerArtworkMotion, progress: () -> Float) {
                     scaleX = frame.width / source.width
                     scaleY = frame.height / source.height
                     clip = true
-                    val radius = motion.endCorner + (8f - motion.endCorner) * p
+                    val radius = motion.endCorner * (1f - p)
                     shape = RoundedCornerShape((radius / scaleX.coerceAtLeast(.01f)).dp)
                 }) { drawLayer(layer) }
     }

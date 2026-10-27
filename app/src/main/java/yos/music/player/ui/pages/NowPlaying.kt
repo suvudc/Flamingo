@@ -49,6 +49,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -203,6 +204,7 @@ import yos.music.player.ui.widgets.sleeptimer.SleepTimerContent
 import yos.music.player.code.SleepTimer
 import yos.music.player.code.SleepTimerState
 import yos.music.player.ui.widgets.basic.ShadowImageWithCache
+import yos.music.player.ui.widgets.basic.MusicGlass
 import yos.music.player.ui.widgets.basic.YosWrapper
 import yos.music.player.ui.widgets.effects.ShadowType
 import yos.music.player.ui.widgets.effects.overlayEffect
@@ -471,7 +473,7 @@ fun NowPlaying(
                         Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
-                            .padding(top = 20.dp), contentAlignment = Alignment.Center
+                            .padding(top = 20.dp).zIndex(3f), contentAlignment = Alignment.Center
                     ) {
                         Box(
                             Modifier
@@ -494,8 +496,7 @@ fun NowPlaying(
                         targetState = nowPageLambda(),
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
-                            .padding(top = 22.dp)
+                            .then(if (nowPageLambda() == Album) Modifier else Modifier.statusBarsPadding().padding(top = 22.dp))
                     ) {
                         //println("nowPage: ${nowPageLambda()}")
                         //println("nowPageIt: $it")
@@ -832,60 +833,35 @@ private fun ColumnScope.Album(
     music: () -> YosMediaItem?,
     animatedAlbumCoverState: AnimatedAlbumCoverState,
     isPlaying: () -> Boolean
-) = Box(
-    Modifier
-        .weight(1f)
-        .padding(top = 20.dp)
-        .padding(horizontal = 15.dp)
-        .padding(bottom = 33.dp),
-    contentAlignment = Alignment.BottomCenter
 ) {
-    val springSpec: AnimationSpec<Float> = remember("Album_springSpec") {
-        SpringSpec(stiffness = 300f, dampingRatio = 1f, visibilityThreshold = 0.001f)
+    val context = LocalContext.current
+    val uri = music()?.thumb
+    val request = remember(context, uri) { coil.request.ImageRequest.Builder(context).data(uri)
+        .size(1024).crossfade(false).error(R.drawable.placeholder_music_default_artwork)
+        .fallback(R.drawable.placeholder_music_default_artwork).build() }
+    val artworkMotion = LocalPlayerArtworkMotion.current
+    val artworkLayer = rememberGraphicsLayer()
+    DisposableEffect(artworkMotion, artworkLayer) {
+        artworkMotion?.artworkLayer = artworkLayer
+        onDispose { artworkMotion?.let { if (it.artworkLayer === artworkLayer) it.artworkLayer = null } }
     }
-
-    val tweenSpec: AnimationSpec<Float> = remember("Album_tweenSpec") {
-        TweenSpec(durationMillis = 350, easing = EaseOutQuart)
-    }
-
-    val scale = animateFloatAsState(
-        targetValue = if (isPlaying()) 0f else 1f,
-        animationSpec = if (isPlaying()) springSpec else tweenSpec,
-        visibilityThreshold = 0.001f
-    )
-
-    YosWrapper {
-        val dp = (7 + (27 * scale.value)).dp
-        val artworkMotion = LocalPlayerArtworkMotion.current
-        val artworkLayer = rememberGraphicsLayer()
-        DisposableEffect(artworkMotion, artworkLayer) {
-            artworkMotion?.artworkLayer = artworkLayer
-            onDispose { artworkMotion?.let { if (it.artworkLayer === artworkLayer) it.artworkLayer = null } }
-        }
-        ShadowImageWithCache(
-            dataLambda = { music()?.thumb }, contentDescription = null, modifier = Modifier
-                .fillMaxWidth()
-                .graphicsLayer {
-                    compositingStrategy = CompositingStrategy.ModulateAlpha
-                    // scaleX = scale.value
-                    // scaleY = scale.value
-                }
-                .padding(start = dp, end = dp, bottom = dp)
-                .then(modifier)
-                .onGloballyPositioned { artworkMotion?.captureSource(it) }
+    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        // A complete square inside the available viewport: never center-crop the cover.
+        val side = minOf(maxWidth, maxHeight)
+        Box(Modifier.size(side).then(modifier)) {
+            Box(Modifier.fillMaxSize().onGloballyPositioned { artworkMotion?.captureSource(it) }
                 .graphicsLayer { alpha = if (artworkMotion?.hasFlight == true) 0f else 1f }
                 .drawWithContent {
-                    if (artworkMotion?.closing != true) {
-                        artworkLayer.record { this@drawWithContent.drawContent() }
-                    }
+                    if (artworkMotion?.closing != true) artworkLayer.record { this@drawWithContent.drawContent() }
                     drawLayer(artworkLayer)
-                },
-            imageQuality = ImageQuality.RAW,
-            shadowOverlay = true,
-            overlayContent = {
+                }) {
+                coil.compose.AsyncImage(request, null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
                 AnimatedAlbumCoverOverlay(animatedAlbumCoverState)
             }
-        )
+            // Fade the hero into the existing colour backdrop without clipping the artwork itself.
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(side * .16f)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .68f)))))
+        }
     }
 }
 
@@ -1868,7 +1844,7 @@ private fun ActionButtonsRow(
         // changed the visible orientation but not the layout hitbox,
         // shifting the tap target to the right of the icon. Both the
         // drawable and hitbox are now horizontal and aligned.
-        Box(
+        MusicGlass(
             modifier = Modifier
                 .clickable(
                     onClick = {
@@ -1880,10 +1856,10 @@ private fun ActionButtonsRow(
                     },
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() })
-                .size(dp),
-            contentAlignment = Alignment.Center
+                .size(40.dp)
         ) {
             AnimatedContent(
+                modifier = Modifier.align(Alignment.Center),
                 targetState = overflowSheetOpen.value,
                 // Match the Material3 ModalBottomSheet close animation
                 // (~300ms) so the icon de-highlights exactly as the sheet

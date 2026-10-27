@@ -219,7 +219,9 @@ class MainActivity : BaseActivity() {
         setContent {
             YosMusicTheme {
                 val artworkMotion = remember { PlayerArtworkMotion() }
-                CompositionLocalProvider(LocalPlayerArtworkMotion provides artworkMotion) {
+                val appGlassHaze = remember { HazeState() }
+                CompositionLocalProvider(LocalPlayerArtworkMotion provides artworkMotion,
+                    yos.music.player.ui.widgets.basic.LocalMusicGlassHaze provides appGlassHaze) {
                 ProvideWindowInsets {
                     val context = LocalContext.current
                     val density = LocalDensity.current
@@ -328,7 +330,7 @@ class MainActivity : BaseActivity() {
                                 mutableStateOf(Album)
                             }
 
-                        val hazeState = remember { HazeState() }
+                        val hazeState = appGlassHaze
                         val glassDock = rememberGlassDockScrollState()
                         LaunchedEffect(route.value) { glassDock.expand() }
                         YosWrapper {
@@ -457,6 +459,7 @@ class MainActivity : BaseActivity() {
                                                     nowLabel.value = it
                                                 }
                                             }
+                                            composable("MusicStats") { yos.music.player.ui.pages.Stats(navController) }
                                             composable(UI.Library) {
                                                 Library(
                                                     navController
@@ -584,15 +587,14 @@ class MainActivity : BaseActivity() {
                                                     context.getString(R.string.page_home_title)
                                                 val library =
                                                     context.getString(R.string.page_library_title)
-                                                val stats =
-                                                    context.getString(R.string.page_stats_title)
+                                                val newMusic = "New"
                                                 if (route.value == UI.HomePage) {
                                                     scope.launch {
                                                         pagerState.animateScrollToPage(
                                                             when (it) {
                                                                 home -> 0
-                                                                library -> 1
-                                                                stats -> 2
+                                                                newMusic -> 1
+                                                                library -> 2
                                                                 else -> 0
                                                             }
                                                         )
@@ -602,8 +604,8 @@ class MainActivity : BaseActivity() {
                                                         pagerState.scrollToPage(
                                                             when (it) {
                                                                 home -> 0
-                                                                library -> 1
-                                                                stats -> 2
+                                                                newMusic -> 1
+                                                                library -> 2
                                                                 else -> 0
                                                             }
                                                         )
@@ -619,13 +621,10 @@ class MainActivity : BaseActivity() {
                                                     stringResource(id = R.string.page_home_title),
                                                     R.drawable.music_note
                                                 ),
+                                                NavItem("New", R.drawable.ic_uitabbar_stats),
                                                 NavItem(
                                                     stringResource(id = R.string.page_library_title),
                                                     R.drawable.ic_uitabbar_library
-                                                ),
-                                                NavItem(
-                                                    stringResource(id = R.string.page_stats_title),
-                                                    R.drawable.ic_uitabbar_stats
                                                 )
                                             ),
                                             modifier = Modifier)

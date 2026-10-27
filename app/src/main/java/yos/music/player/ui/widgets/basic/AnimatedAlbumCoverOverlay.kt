@@ -1,5 +1,6 @@
 package yos.music.player.ui.widgets.basic
 
+import android.graphics.Matrix
 import android.net.Uri
 import android.view.TextureView
 import android.view.ViewGroup
@@ -144,6 +145,12 @@ fun BoxScope.AnimatedAlbumCoverOverlay(state: AnimatedAlbumCoverState)
     AndroidView(
         factory = { viewContext ->
             TextureView(viewContext).apply {
+                addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+                    val video = player.videoSize
+                    val fit = artworkFit(view.width.toFloat(), view.height.toFloat(),
+                        video.width * video.pixelWidthHeightRatio, video.height.toFloat())
+                    setTransform(Matrix().apply { setScale(fit.scaleX, fit.scaleY, view.width / 2f, view.height / 2f) })
+                }
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -158,6 +165,10 @@ fun BoxScope.AnimatedAlbumCoverOverlay(state: AnimatedAlbumCoverState)
                 player.setVideoTextureView(view)
             }
 
+            val video = player.videoSize
+            val fit = artworkFit(view.width.toFloat(), view.height.toFloat(),
+                video.width * video.pixelWidthHeightRatio, video.height.toFloat())
+            view.setTransform(Matrix().apply { setScale(fit.scaleX, fit.scaleY, view.width / 2f, view.height / 2f) })
             player.playWhenReady = state.isPlaying
             if (state.isPlaying) {player.play()} else {player.pause()}
         },

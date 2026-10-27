@@ -46,12 +46,12 @@ fun HomeNav(
         }*/
 
         YosWrapper {
-            LaunchedEffect(pagerState) {
+            LaunchedEffect(pagerState.currentPage) {
                 nowPageOnChanged(
                     when (pagerState.currentPage) {
                     0 -> home
-                    1 -> library
-                    2 -> stats
+                    1 -> "New"
+                    2 -> library
                     else -> home
                     }
                 )
@@ -66,9 +66,9 @@ fun HomeNav(
             userScrollEnabled = false
         ) { page ->
             when (page) {
-                0 -> PixelStyleHome(navController)
-                1 -> Library(navController)
-                2 -> Stats(navController)
+                0 -> OctaveStyleHome(navController)
+                1 -> OctaveStyleHome(navController, newMusic = true)
+                2 -> Library(navController)
             }
         }
     }
