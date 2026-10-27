@@ -39,6 +39,8 @@ import yos.music.player.code.ListenHistoryManager
 import yos.music.player.code.MediaController
 import yos.music.player.data.libraries.*
 import yos.music.player.data.objects.LibraryObject
+import yos.music.player.ui.widgets.basic.LiquidGlassIconButton
+import yos.music.player.ui.widgets.basic.ProfileButton
 import yos.music.player.ui.UI
 import yos.music.player.ui.toUI
 import yos.music.player.ui.theme.isFlamingoInDarkMode
@@ -98,13 +100,9 @@ private fun HomeContent(nav: NavController) {
     Column(Modifier.fillMaxSize().background(c.background).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            FilledTonalIconButton(onClick = { nav.toUI(UI.Settings.About) }, shape = CircleShape) {
-                Icon(Icons.Rounded.Newspaper, stringResource(R.string.home_music_info))
-            }
+            LiquidGlassIconButton(Icons.Rounded.Newspaper, stringResource(R.string.home_music_info), { nav.toUI(UI.Settings.About) })
             Spacer(Modifier.width(8.dp))
-            FilledTonalIconButton(onClick = { nav.toUI(UI.Settings.Main) }, shape = CircleShape) {
-                Icon(Icons.Rounded.Settings, stringResource(R.string.home_settings))
-            }
+            ProfileButton { nav.toUI(UI.Settings.Main) }
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 150.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)) {

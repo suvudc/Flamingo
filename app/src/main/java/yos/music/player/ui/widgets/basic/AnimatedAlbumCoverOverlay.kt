@@ -1,6 +1,8 @@
 package yos.music.player.ui.widgets.basic
 
 import android.net.Uri
+import android.graphics.Matrix
+import kotlin.math.min
 import android.view.TextureView
 import android.view.ViewGroup
 import androidx.compose.animation.core.animateFloatAsState
@@ -144,6 +146,10 @@ fun BoxScope.AnimatedAlbumCoverOverlay(state: AnimatedAlbumCoverState)
     AndroidView(
         factory = { viewContext ->
             TextureView(viewContext).apply {
+                isOpaque = false
+                addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+                    (view as TextureView).fitArtwork(player)
+                }
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -158,6 +164,7 @@ fun BoxScope.AnimatedAlbumCoverOverlay(state: AnimatedAlbumCoverState)
                 player.setVideoTextureView(view)
             }
 
+            view.fitArtwork(player)
             player.playWhenReady = state.isPlaying
             if (state.isPlaying) {player.play()} else {player.pause()}
         },
@@ -167,4 +174,16 @@ fun BoxScope.AnimatedAlbumCoverOverlay(state: AnimatedAlbumCoverState)
                 alpha = videoAlpha
             }
     )
+}
+
+/** TextureView defaults to stretching; keep both the source ratio and complete frame. */
+private fun TextureView.fitArtwork(player: ExoPlayer) {
+    val video = player.videoSize
+    val videoWidth = video.width * video.pixelWidthHeightRatio
+    val videoHeight = video.height.toFloat()
+    if (width <= 0 || height <= 0 || videoWidth <= 0 || videoHeight <= 0) return
+    val fit = min(width / videoWidth, height / videoHeight)
+    setTransform(Matrix().apply {
+        setScale(videoWidth * fit / width, videoHeight * fit / height, width / 2f, height / 2f)
+    })
 }

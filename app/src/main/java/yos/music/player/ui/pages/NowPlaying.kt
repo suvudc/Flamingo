@@ -73,7 +73,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ProgressIndicatorDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SliderPositions
@@ -100,6 +99,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -132,7 +133,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastMap
-import androidx.compose.ui.zIndex
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -466,7 +466,7 @@ fun NowPlaying(
 
             // 这是小把手
             YosWrapper {
-                Column(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().zIndex(1f)) {
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -494,8 +494,7 @@ fun NowPlaying(
                         targetState = nowPageLambda(),
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
-                            .padding(top = 22.dp)
+                            .then(if (nowPageLambda() == Album) Modifier else Modifier.statusBarsPadding().padding(top = 22.dp))
                     ) {
                         //println("nowPage: ${nowPageLambda()}")
                         //println("nowPageIt: $it")
@@ -834,11 +833,8 @@ private fun ColumnScope.Album(
     isPlaying: () -> Boolean
 ) = Box(
     Modifier
-        .weight(1f)
-        .padding(top = 20.dp)
-        .padding(horizontal = 15.dp)
-        .padding(bottom = 33.dp),
-    contentAlignment = Alignment.BottomCenter
+        .weight(1f),
+    contentAlignment = Alignment.TopCenter
 ) {
     val springSpec: AnimationSpec<Float> = remember("Album_springSpec") {
         SpringSpec(stiffness = 300f, dampingRatio = 1f, visibilityThreshold = 0.001f)
@@ -855,7 +851,7 @@ private fun ColumnScope.Album(
     )
 
     YosWrapper {
-        val dp = (7 + (27 * scale.value)).dp
+        val dp = (27 * scale.value).dp
         val artworkMotion = LocalPlayerArtworkMotion.current
         val artworkLayer = rememberGraphicsLayer()
         DisposableEffect(artworkMotion, artworkLayer) {
@@ -881,7 +877,10 @@ private fun ColumnScope.Album(
                     drawLayer(artworkLayer)
                 },
             imageQuality = ImageQuality.RAW,
-            shadowOverlay = true,
+            shadowOverlay = false,
+            shadowAlpha = 0f,
+            cornerRadius = 0.dp,
+            contentScale = ContentScale.Fit,
             overlayContent = {
                 AnimatedAlbumCoverOverlay(animatedAlbumCoverState)
             }
