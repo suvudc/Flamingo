@@ -5,6 +5,10 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.dp
+import android.util.Log
 import androidx.compose.ui.composed
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -20,15 +24,19 @@ internal fun playerDragAxis(x: Float, y: Float, slop: Float): PlayerDragAxis = w
 
 /** Observe before child click handlers; intercept only an intentional vertical drag.
  * Horizontal seek/volume gestures and ordinary taps continue to the original controls. */
-fun Modifier.playerDismissGesture(enabled: Boolean, onDelta: (Float) -> Unit, onRelease: (Float) -> Unit): Modifier = composed {
+fun Modifier.playerDismissGesture(enabled: Boolean, onDelta: (Float) -> Unit, onRelease: (Float, Boolean) -> Unit): Modifier = composed {
     val delta by rememberUpdatedState(onDelta)
     val release by rememberUpdatedState(onRelease)
-    pointerInput(enabled) {
+    val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    onGloballyPositioned { coordinates[0] = it }.pointerInput(enabled) {
         if (!enabled) return@pointerInput
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            fun rootPoint(point: Offset): Offset = coordinates[0]?.takeIf { it.isAttached }?.localToRoot(point) ?: point
+            val origin = rootPoint(down.position)
+            var previousRoot = origin
             val velocity = VelocityTracker()
-            velocity.addPosition(down.uptimeMillis, down.position)
+            velocity.addPosition(down.uptimeMillis, origin)
             var travel = Offset.Zero
             var dragging = false
             var released = false
@@ -36,10 +44,20 @@ fun Modifier.playerDismissGesture(enabled: Boolean, onDelta: (Float) -> Unit, on
                 while (true) {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    travel += change.position - change.previousPosition
-                    velocity.addPosition(change.uptimeMillis, down.position + travel)
+                    val root = rootPoint(change.position)
+                    val movement = root - previousRoot
+                    previousRoot = root
+                    travel = root - origin
+                    velocity.addPosition(change.uptimeMillis, root)
                     if (!change.pressed) {
-                        if (dragging) { change.consume(); release(-velocity.calculateVelocity().y); released = true }
+                        if (dragging) {
+                            change.consume()
+                            val speed = -velocity.calculateVelocity().y
+                            val dismiss = travel.y >= 64.dp.toPx()
+                            Log.d("MusicPlayerDrag", "Release distance=${travel.y} velocity=$speed dismiss=$dismiss")
+                            release(speed, dismiss)
+                            released = true
+                        }
                         break
                     }
                     val total = travel
@@ -48,19 +66,20 @@ fun Modifier.playerDismissGesture(enabled: Boolean, onDelta: (Float) -> Unit, on
                             PlayerDragAxis.Horizontal -> break
                             PlayerDragAxis.Vertical -> {
                                 dragging = true
+                                Log.d("MusicPlayerDrag", "Vertical drag started")
                                 change.consume()
                                 delta(-(total.y - sign(total.y) * viewConfiguration.touchSlop))
                             }
                             PlayerDragAxis.Pending -> Unit
                         }
                     } else {
-                        val dy = change.position.y - change.previousPosition.y
+                        val dy = movement.y
                         change.consume()
                         delta(-dy)
                     }
                 }
             } finally {
-                if (dragging && !released) release(0f)
+                if (dragging && !released) release(0f, false)
             }
         }
     }

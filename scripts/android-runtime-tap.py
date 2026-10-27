@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 
 label = sys.argv[1]
 root = ET.parse('runtime-diagnostics/window.xml').getroot()
-nodes = [n for n in root.iter('node') if n.get('text') == label or n.get('content-desc') == label]
+nodes = [n for n in root.iter('node') if n.get('text') == label or n.get('content-desc') == label or (label == 'Open lyrics' and label in n.get('content-desc', ''))]
 if not nodes:
     raise SystemExit('No visible control: ' + label)
 node = nodes[-1]

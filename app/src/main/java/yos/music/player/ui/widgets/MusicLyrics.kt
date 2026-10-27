@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,7 +83,7 @@ private fun SweptLine(line: LyricLine, clock: State<Float>, active: Boolean,
                 constraints = Constraints(maxWidth = maxPx))
         }
         val height = with(density) { layout.size.height.toDp() + 8.dp }
-        Spacer(Modifier.fillMaxWidth().height(height).drawWithCache {
+        Spacer(Modifier.fillMaxWidth().height(height).semantics { contentDescription = line.text }.drawWithCache {
             val inset = 4.dp.toPx()
             val shiftX = if (alignRight) (size.width - layout.size.width).coerceAtLeast(0f) else 0f
             val feather = (if (compact) 16.dp else 30.dp).toPx()
@@ -147,7 +149,7 @@ fun MainPlayerLyricStrip(onOpenLyrics: () -> Unit) {
     val clock = rememberLyricsClock()
     val index by remember(lines, clock) { derivedStateOf { activeLyricIndex(lines, clock.value) } }
     val line = lines.getOrNull(index)
-    Row(Modifier.fillMaxWidth().height(34.dp).clickable(
+    Row(Modifier.fillMaxWidth().height(34.dp).semantics { contentDescription = "Open lyrics" }.clickable(
         interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onOpenLyrics),
         verticalAlignment = Alignment.CenterVertically) {
         AnimatedContent(targetState = index, label = "Current lyric", modifier = Modifier.weight(1f),

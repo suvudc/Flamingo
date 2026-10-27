@@ -9,6 +9,13 @@ capture() {
 trap capture EXIT
 apk=$(find app/build/outputs/apk/optimized -name '*.apk' -print -quit)
 adb install -r -g "$apk"
+python scripts/android-runtime-fixture.py
+adb shell mkdir -p /sdcard/Music
+adb push runtime-diagnostics/MusicRuntime.wav /sdcard/Music/MusicRuntime.wav
+adb push runtime-diagnostics/MusicRuntime.ttml /sdcard/Music/MusicRuntime.ttml
+adb shell appops set yos.music.player.music MANAGE_EXTERNAL_STORAGE allow
+adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Music/MusicRuntime.wav
+sleep 2
 adb shell cmd uimode night yes
 adb logcat -c
 adb shell am force-stop yos.music.player.music
@@ -86,5 +93,26 @@ assert 'Home' in texts and 'Library' in texts, 'Mid-player swipe did not minimiz
 print('Mid-player swipe minimized; provider picker opened')
 PY_DISMISS
 adb exec-out screencap -p > runtime-diagnostics/screen-minimized.png
+python scripts/android-runtime-tap.py 'New'
+sleep 2
+dump_ui
+python scripts/android-runtime-tap.py 'MusicRuntime'
+sleep 3
+dump_ui
+python scripts/android-runtime-tap.py 'MusicRuntime'
+sleep 2
+dump_ui
+python scripts/android-runtime-tap.py 'Open lyrics'
+sleep 3
+dump_ui
+python - <<'PY_WORDS'
+import xml.etree.ElementTree as ET
+root = ET.parse('runtime-diagnostics/window.xml').getroot()
+assert any('Offline lyrics test' in n.get('content-desc', '') for n in root.iter('node')), 'Timed fixture lyrics did not render'
+print('Local timed lyrics rendered in the full lyrics view')
+PY_WORDS
+adb exec-out screencap -p > runtime-diagnostics/screen-lyrics.png
+adb shell screenrecord --time-limit 4 /sdcard/music-lyrics.mp4
+adb pull /sdcard/music-lyrics.mp4 runtime-diagnostics/lyrics-animation.mp4
 adb shell dumpsys activity activities | grep -Eq '(mResumedActivity|topResumedActivity|ResumedActivity).*yos[.]music[.]player[.]music/.*MainActivity'
 echo 'Music stayed open and navigated Home, New and Library on Android 15.'

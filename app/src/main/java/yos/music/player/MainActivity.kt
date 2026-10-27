@@ -688,7 +688,11 @@ class MainActivity : BaseActivity() {
                                                 if (!artworkMotion.closing) scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
                                                     offsetY.snapTo((offsetY.value + delta).coerceIn(0f, parentHeight.intValue.toFloat()))
                                                 }
-                                            }, onRelease = settlePlayer)
+                                            }, onRelease = { velocity, dismiss ->
+                                                if (dismiss && !artworkMotion.closing) scope.launch {
+                                                    minimizePlayer(velocity)
+                                                } else settlePlayer(velocity)
+                                            })
                                     } else Modifier.draggable(
                                         enabled = !artworkMotion.closing,
                                         orientation = Orientation.Vertical,
