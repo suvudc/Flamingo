@@ -203,7 +203,6 @@ import yos.music.player.ui.widgets.sleeptimer.SleepTimerContent
 import yos.music.player.code.SleepTimer
 import yos.music.player.code.SleepTimerState
 import yos.music.player.ui.widgets.basic.ShadowImageWithCache
-import yos.music.player.ui.widgets.basic.MusicGlass
 import yos.music.player.ui.widgets.basic.YosWrapper
 import yos.music.player.ui.widgets.effects.ShadowType
 import yos.music.player.ui.widgets.effects.overlayEffect
@@ -1782,34 +1781,34 @@ private fun ActionButtonsRow(
     onMinimizeNowPlaying: suspend () -> Unit,
     musicPlayingLambda: () -> YosMediaItem?,
 ) {
+    val context = LocalContext.current
+
+    // Overflow menu state. The sheet renders only when this is true; the icon
+    // swaps to its filled variant while open (PRD §5.1 FR-OM-2).
+    val overflowSheetOpen = remember { mutableStateOf(false) }
+    // Snapshot of the song that was playing when the sheet was opened
+    // (PRD §5.3 FR-OM-8). All actions in the sheet refer to this item.
+    val snapshotSong = remember { mutableStateOf<YosMediaItem?>(null) }
+    val actionButtonScope = rememberCoroutineScope()
+
+    NowPlayingOverflowSheet(
+        isOpen = overflowSheetOpen,
+        song = snapshotSong.value,
+        navController = navController,
+        onOpenLibraryTarget = {
+            actionButtonScope.launch {
+                onMinimizeNowPlaying()
+            }
+            navController.toUI(it.route)
+        },
+    )
+
+
     Row(
-        modifier = Modifier
-            .overlayEffect(),
+        modifier = Modifier.overlayEffect(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val dp = 28.dp
-
-        val context = LocalContext.current
-
-        // Overflow menu state. The sheet renders only when this is true; the icon
-        // swaps to its filled variant while open (PRD §5.1 FR-OM-2).
-        val overflowSheetOpen = remember { mutableStateOf(false) }
-        // Snapshot of the song that was playing when the sheet was opened
-        // (PRD §5.3 FR-OM-8). All actions in the sheet refer to this item.
-        val snapshotSong = remember { mutableStateOf<YosMediaItem?>(null) }
-        val actionButtonScope = rememberCoroutineScope()
-
-        NowPlayingOverflowSheet(
-            isOpen = overflowSheetOpen,
-            song = snapshotSong.value,
-            navController = navController,
-            onOpenLibraryTarget = {
-                actionButtonScope.launch {
-                    onMinimizeNowPlaying()
-                }
-                navController.toUI(it.route)
-            },
-        )
 
         Box(
             modifier = Modifier
@@ -1869,8 +1868,9 @@ private fun ActionButtonsRow(
         // changed the visible orientation but not the layout hitbox,
         // shifting the tap target to the right of the icon. Both the
         // drawable and hitbox are now horizontal and aligned.
-        MusicGlass(
+        Box(
             modifier = Modifier
+                .size(40.dp)
                 .clickable(
                     onClick = {
                         // Snapshot the currently-playing song at open time
@@ -1880,11 +1880,11 @@ private fun ActionButtonsRow(
                         overflowSheetOpen.value = true
                     },
                     indication = null,
-                    interactionSource = remember { MutableInteractionSource() })
-                .size(40.dp)
+                    interactionSource = remember { MutableInteractionSource() },
+                    role = androidx.compose.ui.semantics.Role.Button),
+            contentAlignment = Alignment.Center
         ) {
             AnimatedContent(
-                modifier = Modifier.align(Alignment.Center),
                 targetState = overflowSheetOpen.value,
                 // Match the Material3 ModalBottomSheet close animation
                 // (~300ms) so the icon de-highlights exactly as the sheet
@@ -1899,14 +1899,14 @@ private fun ActionButtonsRow(
                 if (it) {
                     Icon(
                         painterResource(id = R.drawable.ic_nowplaying_more_fill),
-                        contentDescription = null,
+                        contentDescription = "More song options",
                         modifier = Modifier
                             .size(dp)
                     )
                 } else {
                     Icon(
                         painterResource(id = R.drawable.ic_nowplaying_more),
-                        contentDescription = null,
+                        contentDescription = "More song options",
                         modifier = Modifier
                             .overlayEffect()
                             .size(dp)

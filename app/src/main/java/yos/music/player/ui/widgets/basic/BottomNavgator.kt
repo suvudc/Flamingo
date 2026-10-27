@@ -3,6 +3,10 @@ package yos.music.player.ui.widgets.basic
 import android.os.Build
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
@@ -112,18 +116,25 @@ private fun GlassPill(modifier: Modifier, haze: HazeState?, base: Color, dark: B
 @Composable
 private fun GlassTabs(items: List<NavItem>, selected: Int, ink: Color, onSelect: (String) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize().padding(5.dp)) {
-        val width = maxWidth / items.size
-        val leading = animateFloatAsState(selected.toFloat(), spring(dampingRatio = .86f, stiffness = 550f), label = "Glass tab lead")
-        val trailing = animateFloatAsState(selected.toFloat(), spring(dampingRatio = 1f, stiffness = 220f), label = "Glass tab tail")
-        val direction = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1 else 1
-        Box(Modifier.width(width).fillMaxHeight().graphicsLayer { translationX = ((leading.value + trailing.value) * .5f * width.toPx()) * direction
-                transformOrigin = TransformOrigin(.5f, .5f)
-                scaleX = 1f + kotlin.math.abs(leading.value - trailing.value).coerceAtMost(.3f) }
-            .clip(CircleShape).background(ink.copy(alpha = .13f)))
+        // Draw one selection marker. Per-tab ripples would add a second capsule
+        // under the finger while this marker travels to the selected tab.
+        val position = animateFloatAsState(selected.toFloat(),
+            spring(dampingRatio = 1f, stiffness = 420f), label = "Glass tab selection")
+        val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+        Canvas(Modifier.fillMaxSize()) {
+            val tabWidth = size.width / items.size
+            val index = if (rtl) items.lastIndex - position.value else position.value
+            drawRoundRect(ink.copy(alpha = .13f),
+                topLeft = Offset(index * tabWidth, 0f),
+                size = Size(tabWidth, size.height),
+                cornerRadius = CornerRadius(size.height / 2f))
+        }
         Row(Modifier.fillMaxSize().selectableGroup()) {
             items.forEachIndexed { index, item ->
                 Column(Modifier.weight(1f).fillMaxHeight().clip(CircleShape)
-                    .selectable(index == selected, role = Role.Tab, onClick = { onSelect(item.label) }),
+                    .selectable(selected = index == selected,
+                        interactionSource = remember { MutableInteractionSource() }, indication = null,
+                        role = Role.Tab, onClick = { onSelect(item.label) }),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     val tint = if (index == selected) Color(0xFFFF0065) else ink.copy(alpha = .90f)
                     when (index) {

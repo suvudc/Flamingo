@@ -40,7 +40,7 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_7
-          disable-animations: true
+          disable-animations: false
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -camera-back none -camera-front none
           script: bash scripts/android-runtime-smoke.sh
       - name: Upload runtime diagnostics
