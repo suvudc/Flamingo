@@ -132,6 +132,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.zIndex
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -504,7 +506,6 @@ fun NowPlaying(
                                 Column(
                                     Modifier
                                         .fillMaxSize()
-                                        .clickable(enabled = false, onClick = {})
                                 ) {
                                     YosWrapper {
                                         Column(Modifier.fillMaxHeight(0.595f)) {
@@ -596,8 +597,7 @@ fun NowPlaying(
                                     Column(
                                         Modifier
                                             .fillMaxSize()
-                                            .clickable(enabled = false, onClick = {})
-                                    ) {
+                                        ) {
                                         val isVisible = nowPageLambda() == PlayingList
                                         PlayingBar(
                                             modifier = Modifier.sharedElementWithCallerManagedVisibility(
@@ -634,7 +634,6 @@ fun NowPlaying(
                     Column(
                         Modifier
                             .fillMaxSize()
-                            .clickable(enabled = false, onClick = {})
                     ) {
                         PlayingList(
                             shuffleModeEnabledLambda = { shuffleModeEnabled.value },
@@ -1871,6 +1870,7 @@ private fun ActionButtonsRow(
         Box(
             modifier = Modifier
                 .size(40.dp)
+                .semantics { contentDescription = "More song options" }
                 .clickable(
                     onClick = {
                         // Snapshot the currently-playing song at open time
