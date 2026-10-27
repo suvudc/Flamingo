@@ -15,8 +15,13 @@ adb push runtime-diagnostics/MusicRuntime.mp3 /sdcard/Music/MusicRuntime.mp3
 adb push runtime-diagnostics/MusicRuntime.ttml /sdcard/Music/MusicRuntime.ttml
 adb shell appops set yos.music.player.music MANAGE_EXTERNAL_STORAGE allow
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Music/MusicRuntime.mp3
-# Wait for indexing and mark this synthetic file as music before Music's first scan.
-sleep 4
+# Wait for the scanner's real metadata; overwriting its MIME/duration while
+# it is still indexing can make the synthetic row disappear on Android 15.
+for attempt in $(seq 1 12); do
+  adb shell content query --uri content://media/external/audio/media --projection _id:title:duration > runtime-diagnostics/media-before.txt
+  if grep -q 'MusicRuntime' runtime-diagnostics/media-before.txt; then break; fi
+  sleep 1
+done
 adb shell content query --uri content://media/external/audio/media --projection _id:title > runtime-diagnostics/media-before.txt
 fixture_id=$(python - <<'PY_ID'
 import re
@@ -30,10 +35,7 @@ for line in s.splitlines():
             break
 PY_ID
 )
-if [ -n "$fixture_id" ]; then
-  # A numerical item URI avoids the shell stripping SQL string quotes from --where.
-  adb shell content update --uri "content://media/external/audio/media/$fixture_id" --bind is_music:i:1 --bind duration:l:64000 --bind mime_type:s:audio/mpeg
-fi
+test -n "$fixture_id"
 adb shell content query --uri content://media/external/audio/media --projection _id:title:is_music:duration:mime_type > runtime-diagnostics/media-store.txt
 adb shell cmd uimode night yes
 adb logcat -c
@@ -67,6 +69,18 @@ for attempt in 1 2 3; do
   if ! python scripts/android-runtime-tap.py 'Save Changes'; then break; fi
   sleep 4
 done
+# -g grants permission before launch, so the permission callback that performs
+# the first library scan does not run. Refresh explicitly through the real UI.
+dump_ui
+python scripts/android-runtime-tap.py 'Settings and more'
+dump_ui
+python scripts/android-runtime-tap.py 'Settings'
+sleep 2
+dump_ui
+python scripts/android-runtime-tap.py 'Refresh Media Library'
+sleep 4
+adb shell input keyevent 4
+sleep 2
 for label in New Library Home; do
   adb shell pidof yos.music.player.music >/dev/null || { echo 'Music exited during navigation'; exit 1; }
   adb shell uiautomator dump /sdcard/music-window.xml
@@ -98,7 +112,7 @@ dump_ui
 python scripts/android-runtime-tap.py 'Lyrics provider'
 sleep 1
 dump_ui
-python scripts/android-runtime-tap.py 'Automatic'
+python scripts/android-runtime-tap.py 'Local lyrics'
 sleep 2
 # Swipe from the middle of the artwork, not the top handle.
 adb shell input swipe 500 1000 500 2050 350

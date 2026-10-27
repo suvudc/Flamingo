@@ -2,6 +2,8 @@
 from pathlib import Path
 import wave
 import subprocess
+import math
+from array import array
 
 root = Path('runtime-diagnostics')
 root.mkdir(exist_ok=True)
@@ -9,7 +11,8 @@ with wave.open(str(root / 'MusicRuntime.wav'), 'wb') as audio:
     audio.setnchannels(1)
     audio.setsampwidth(2)
     audio.setframerate(8000)
-    audio.writeframes(b'\0\0' * 8000 * 64)
+    audio.writeframes(array('h', (int(1200 * math.sin(2 * math.pi * 220 * n / 8000))
+                                 for n in range(8000 * 64))).tobytes())
 subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', str(root / 'MusicRuntime.wav'),
     '-metadata', 'title=MusicRuntime', '-metadata', 'artist=Music runtime',
     '-c:a', 'libmp3lame', str(root / 'MusicRuntime.mp3')], check=True)
