@@ -1,6 +1,7 @@
 package yos.music.player.ui.widgets.basic
 
-import androidx.compose.foundation.clickable
+import yos.music.player.ui.widgets.basic.HapticIconButton as IconButton
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items

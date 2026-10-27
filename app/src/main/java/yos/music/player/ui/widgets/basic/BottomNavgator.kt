@@ -1,5 +1,7 @@
 package yos.music.player.ui.widgets.basic
 
+import yos.music.player.ui.widgets.basic.HapticIconButton as IconButton
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import android.os.Build
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -134,7 +136,7 @@ private fun GlassTabs(items: List<NavItem>, selected: Int, ink: Color, onSelect:
                 Column(Modifier.weight(1f).fillMaxHeight().clip(CircleShape)
                     .selectable(selected = index == selected,
                         interactionSource = remember { MutableInteractionSource() }, indication = null,
-                        role = Role.Tab, onClick = { onSelect(item.label) }),
+                        role = Role.Tab, onClick = rememberHapticAction { onSelect(item.label) }),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     val tint = if (index == selected) Color(0xFFFF0065) else ink.copy(alpha = .90f)
                     when (index) {

@@ -44,3 +44,9 @@ fun lyricTimeline(entries: List<List<Pair<Float, String>>>, endTimes: List<Float
 
 fun activeLyricIndex(lines: List<LyricLine>, now: Float): Int =
     lines.indexOfLast { now >= it.start && now < it.end }
+
+/** Preserve the last sung line in gaps, and show the first lyric during the intro. */
+fun displayLyricIndex(lines: List<LyricLine>, now: Float): Int =
+    activeLyricIndex(lines, now).takeIf { it >= 0 }
+        ?: lines.indexOfLast { now >= it.start }.takeIf { it >= 0 }
+        ?: if (lines.isEmpty()) -1 else 0

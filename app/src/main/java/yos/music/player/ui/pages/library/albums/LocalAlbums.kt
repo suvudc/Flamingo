@@ -1,9 +1,9 @@
 package yos.music.player.ui.pages.library.albums
 
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize

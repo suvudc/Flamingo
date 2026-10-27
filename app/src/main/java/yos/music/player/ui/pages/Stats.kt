@@ -1,9 +1,9 @@
 package yos.music.player.ui.pages
 
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement

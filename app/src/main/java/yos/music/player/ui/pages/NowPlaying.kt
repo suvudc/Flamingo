@@ -2,6 +2,7 @@
 
 package yos.music.player.ui.pages
 
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -42,7 +43,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -679,23 +679,6 @@ fun NowPlaying(
                             .fillMaxHeight(0.437f)
                             .fillMaxWidth()
                     ) {
-                        YosWrapper {
-                            if (showControl.value) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(top = 40.dp)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = {
-                                                //showControl.value = true
-                                                /*lastClickTime.longValue =
-                                                TimeUtils.getNowMills()*/
-                                            })
-                                )
-                            }
-                        }
 
                         YosWrapper {
                             Column(
@@ -1672,12 +1655,6 @@ private fun Lyric(
     onBackClick: () -> Unit
 ) = YosWrapper {
 
-    var providerOpen by remember { mutableStateOf(false) }
-    if (providerOpen) {
-        YosBottomSheetDialog(onDismissRequest = { providerOpen = false }) {
-            LyricsProviderContent { providerOpen = false }
-        }
-    }
     val density = LocalDensity.current
     val statusTop = with(density) {
         maxOf(WindowInsets.statusBars.getTop(this), WindowInsets.displayCutout.getTop(this)).toDp()
@@ -1687,15 +1664,7 @@ private fun Lyric(
         // Reserve the space BEFORE measuring the header and list, rather than
         // taking 56% of the space remaining after the header.
         val controlsHeight = if (weightLambda()) maxHeight * .437f + 38.dp else 0.dp
-        Column(Modifier.fillMaxSize().padding(top = 110.dp, bottom = controlsHeight).clipToBounds()) {
-            androidx.compose.material3.TextButton(onClick = { providerOpen = true }, modifier = Modifier.padding(horizontal = 24.dp)) {
-                Column {
-                    Text("Lyrics · " + yos.music.player.code.lyrics.LyricsProvider.fromId(SettingsLibrary.LyricsProvider).title,
-                        color = Color.White.copy(alpha = .8f), fontSize = 13.sp)
-                    Text(MediaViewModelObject.lyricsDownloadStatus.value.ifBlank { "Choose provider / download for offline" },
-                        color = Color.White.copy(alpha = .5f), fontSize = 11.sp)
-                }
-            }
+        Column(Modifier.fillMaxSize().padding(top = 154.dp, bottom = controlsHeight).clipToBounds()) {
             MusicLyricsPanel(Modifier.fillMaxWidth().weight(1f).clipToBounds(),
                 showTranslation = translationLambda(), onSeek = { onBackClick(); mediaControl?.seekTo(it) })
         }
@@ -2083,6 +2052,7 @@ private fun NowPlayingOverflowHeader(
                             ?.item
                             ?: return@ClickableText
 
+                        Vibrator.click(context)
                         LibraryObject.setTargetArtistName(artistName)
                         LibraryObject.setArtistSongsSearchOnOpen(false)
                         navController.markNextNavigationFromNowPlaying()

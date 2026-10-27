@@ -1,7 +1,7 @@
 package yos.music.player.ui.widgets.sleeptimer
 
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement

@@ -1,5 +1,7 @@
 package yos.music.player.ui.widgets
 
+import yos.music.player.ui.widgets.basic.HapticTextButton as TextButton
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -147,7 +149,7 @@ private fun SweptLine(line: LyricLine, clock: State<Float>, active: Boolean,
 fun MainPlayerLyricStrip(modifier: Modifier = Modifier, onOpenLyrics: () -> Unit) {
     val lines = rememberTimeline()
     val clock = rememberLyricsClock()
-    val index by remember(lines, clock) { derivedStateOf { activeLyricIndex(lines, clock.value) } }
+    val index by remember(lines, clock) { derivedStateOf { displayLyricIndex(lines, clock.value) } }
     val line = lines.getOrNull(index)
     Row(modifier.fillMaxWidth().height(34.dp).clipToBounds().semantics { contentDescription = "Open lyrics" }.clickable(
         interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onOpenLyrics),
@@ -157,7 +159,7 @@ fun MainPlayerLyricStrip(modifier: Modifier = Modifier, onOpenLyrics: () -> Unit
                 (fadeOut(tween(260)) + slideOutVertically(tween(340, easing = lyricEasing)) { -it / 3 }) }) { shown ->
             val shownLine = lines.getOrNull(shown)
             if (shownLine != null) SweptLine(shownLine, clock, active = shown == index, compact = true)
-            else Text(if (MediaViewModelObject.lyricsDownloading.value) "Finding lyrics…" else if (lines.isEmpty()) "Lyrics & providers" else "♪ Instrumental",
+            else Text("",
                 color = Color.White.copy(alpha = .55f), fontSize = 15.sp, maxLines = 1)
         }
         Icon(Icons.Rounded.ChevronRight, "Open lyrics", tint = Color.White.copy(alpha = .6f), modifier = Modifier.size(20.dp))
@@ -187,7 +189,12 @@ fun MusicLyricsPanel(modifier: Modifier = Modifier, showTranslation: Boolean = t
     if (lines.isEmpty()) Box(modifier, contentAlignment = Alignment.Center) {
         Text(if (MediaViewModelObject.lyricsDownloading.value) "Finding lyrics…" else "No lyrics yet. Choose a provider above.",
             color = Color.White.copy(alpha = .6f), modifier = Modifier.padding(24.dp))
-    } else LazyColumn(modifier.clipToBounds().onSizeChanged { viewport = it.height }, state = list,
+    } else LazyColumn(modifier.clipToBounds().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithCache {
+            val mask = Brush.verticalGradient(0f to Color.Transparent, .12f to Color.White,
+                .78f to Color.White, 1f to Color.Transparent)
+            onDrawWithContent { drawContent(); drawRect(mask, blendMode = BlendMode.DstIn) }
+        }.onSizeChanged { viewport = it.height }, state = list,
         contentPadding = PaddingValues(top = 42.dp, bottom = 180.dp, start = 26.dp, end = 26.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)) {
         itemsIndexed(lines, key = { i, line -> "$i:${line.start}:${line.text.hashCode()}" }) { i, line ->
@@ -198,7 +205,10 @@ fun MusicLyricsPanel(modifier: Modifier = Modifier, showTranslation: Boolean = t
             val alpha by animateFloatAsState(if (active) 1f else if (browsing) .8f else when(distance) { 1 -> .8f; 2 -> .7f; 3 -> .58f; else -> .46f },
                 tween(400, easing = lyricEasing), label = "Lyric focus")
             val scale by animateFloatAsState(if (active) 1f else .98f, tween(400, easing = lyricEasing), label = "Lyric scale")
-            Column(Modifier.fillMaxWidth().graphicsLayer { this.alpha = alpha; scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, .5f) }
+            val blur by animateDpAsState(if (active || browsing || distance <= 1) 0.dp
+                else (distance * 1.25f).coerceAtMost(4f).dp,
+                tween(400, easing = lyricEasing), label = "Lyric soft focus")
+            Column(Modifier.fillMaxWidth().blur(blur).graphicsLayer { this.alpha = alpha; scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, .5f) }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSeek(line.start.toLong()) }) {
                 SweptLine(line, clock, active, alignRight = sides.getOrNull(line.sourceIndex) == true)
                 val secondary = if (showTranslation) subtitles.getOrNull(line.sourceIndex)

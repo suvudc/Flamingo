@@ -1,8 +1,11 @@
 package yos.music.player.ui.pages
 
+import yos.music.player.ui.widgets.basic.HapticFilledTonalIconButton as FilledTonalIconButton
+import yos.music.player.ui.widgets.basic.HapticFilledIconButton as FilledIconButton
+import yos.music.player.ui.widgets.basic.HapticTextButton as TextButton
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import android.os.Build
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow

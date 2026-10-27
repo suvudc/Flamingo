@@ -1,7 +1,7 @@
 package yos.music.player.ui.pages.library.artists
 
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

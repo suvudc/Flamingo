@@ -1,10 +1,10 @@
 package yos.music.player.ui.pages.settings
 
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

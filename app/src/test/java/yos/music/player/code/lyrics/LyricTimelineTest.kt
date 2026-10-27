@@ -34,6 +34,17 @@ class LyricTimelineTest {
         assertEquals(0, activeLyricIndex(listOf(line), 2000f))
         assertEquals(-1, activeLyricIndex(listOf(line), 3000f))
     }
+    @Test fun compactStripRetainsLyricsAcrossIntroGapAndOutro() {
+        val first = words()
+        val second = first.copy(start = 6000f, end = 8000f, text = "Next line")
+        val lines = listOf(first, second)
+        assertEquals(0, displayLyricIndex(lines, 0f))
+        assertEquals(0, displayLyricIndex(lines, 4000f))
+        assertEquals(1, displayLyricIndex(lines, 6500f))
+        assertEquals(1, displayLyricIndex(lines, 9000f))
+        assertEquals(0, displayLyricIndex(lines, 2000f)) // seeking back restores the earlier lyric
+        assertEquals(-1, displayLyricIndex(emptyList(), 2000f))
+    }
     @Test fun emptyLinesDoNotShiftTranslationMetadata() {
         val lines = lyricTimeline(listOf(listOf(0f to "", 0f to ""), listOf(1000f to "", 1500f to "Hi", 1000f to "")), listOf(1000f, 3000f))
         assertEquals(1, lines.single().sourceIndex)

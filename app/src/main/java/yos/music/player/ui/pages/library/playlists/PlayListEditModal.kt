@@ -1,5 +1,6 @@
 package yos.music.player.ui.pages.library.playlists
 
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -8,7 +9,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
