@@ -593,8 +593,8 @@ class MainActivity : BaseActivity() {
                                                         pagerState.animateScrollToPage(
                                                             when (it) {
                                                                 home -> 0
-                                                                library -> 1
-                                                                newMusic -> 2
+                                                                library -> 2
+                                                                newMusic -> 1
                                                                 else -> 0
                                                             }
                                                         )
@@ -604,8 +604,8 @@ class MainActivity : BaseActivity() {
                                                         pagerState.scrollToPage(
                                                             when (it) {
                                                                 home -> 0
-                                                                library -> 1
-                                                                newMusic -> 2
+                                                                library -> 2
+                                                                newMusic -> 1
                                                                 else -> 0
                                                             }
                                                         )

@@ -158,7 +158,7 @@ private fun SharedPlaylists(onDismiss: () -> Unit) {
     val songs = MusicLibrary.songs
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Share a playlist") }, text = {
         LazyColumn(Modifier.heightIn(max = 320.dp)) {
-            item { Text("Send a playlist's song list to someone. Shared listening rooms require an online service.",
+            item { Text("Send the titles and artists from one of your playlists.",
                 Modifier.padding(bottom = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (playlists.isEmpty()) item { Text("Create a playlist to share it here.") }
             items(playlists, key = { it.listID }) { playlist ->

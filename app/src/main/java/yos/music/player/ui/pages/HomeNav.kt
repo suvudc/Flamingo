@@ -51,8 +51,8 @@ fun HomeNav(
                 nowPageOnChanged(
                     when (pagerState.currentPage) {
                     0 -> home
-                    1 -> library
-                    2 -> newMusic
+                    1 -> newMusic
+                    2 -> library
                     else -> home
                     }
                 )
@@ -68,8 +68,8 @@ fun HomeNav(
         ) { page ->
             when (page) {
                 0 -> PixelStyleHome(navController)
-                1 -> Library(navController)
-                2 -> NewMusic(navController)
+                1 -> NewMusic(navController)
+                2 -> Library(navController)
             }
         }
     }
