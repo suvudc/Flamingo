@@ -34,13 +34,17 @@ object LyricsDownloads {
     suspend fun load(context: Context, song: YosMediaItem, refresh: Boolean = false, provider: LyricsProvider = LyricsProvider.Auto): Download? = withContext(Dispatchers.IO) {
         if (provider == LyricsProvider.Local) return@withContext null
         val disk = store(context)
-        val key = key(disk, song, provider)
-        val cached = disk.read(key)?.let { raw ->
+        val cacheKey = key(disk, song, provider)
+        fun readCached(source: LyricsProvider) = disk.read(key(disk, song, source))?.let { raw ->
             runCatching {
                 val obj = JsonParser.parseString(raw).asJsonObject
                 OnlineLyrics.parse(obj["lyrics"].asString)?.let { Download(it, obj["source"].asString, true) }
             }.getOrNull()
         }
+        val savedVersions = if (provider == LyricsProvider.Auto)
+            LyricsProvider.entries.filter { it != LyricsProvider.Local }.mapNotNull(::readCached)
+            else listOfNotNull(readCached(provider))
+        val cached = savedVersions.firstOrNull { OnlineLyrics.wordTimed(it.parsed) } ?: savedVersions.firstOrNull()
         if (!refresh && cached != null) return@withContext cached
         val title = song.title?.takeIf { it.isNotBlank() } ?: return@withContext cached
         val artist = song.artistsName?.takeIf { it.isNotBlank() } ?: return@withContext cached
@@ -68,7 +72,7 @@ object LyricsDownloads {
             ?: return@withContext cached
         val saved = runCatching {
             val document = JsonObject().apply { addProperty("source", best.first); addProperty("lyrics", best.second) }
-            disk.write(key, document.toString())
+            disk.write(cacheKey, document.toString())
         }.isSuccess
         Download(best.third, best.first, saved)
     }

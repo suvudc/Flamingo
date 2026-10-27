@@ -23,6 +23,11 @@ class LyricTimelineTest {
         assertFalse(line.wordTimed)
         assertEquals(14f, line.sungCharacters(1100f), .001f)
     }
+    @Test fun singleWordWithRealStartAndEndStillAnimates() {
+        val line = lyricTimeline(listOf(listOf(1000f to "", 3000f to "Hello", 1000f to "")), listOf(3000f)).single()
+        assertTrue(line.wordTimed)
+        assertEquals(2.5f, line.sungCharacters(2000f), .001f)
+    }
     @Test fun noPreviousLineDuringInstrumentalGap() {
         val line = words()
         assertEquals(-1, activeLyricIndex(listOf(line), 999f))

@@ -4,7 +4,7 @@ import kotlin.math.max
 
 data class LyricWord(val start: Float, val end: Float, val from: Int, val until: Int)
 data class LyricLine(val start: Float, val end: Float, val text: String, val words: List<LyricWord>, val sourceIndex: Int = 0) {
-    val wordTimed: Boolean get() = words.size > 1 && words.any { it.end > it.start }
+    val wordTimed: Boolean get() = words.any { it.end > it.start }
     /** Character position comes only from real word boundaries; silence holds the previous position. */
     fun sungCharacters(now: Float): Float {
         if (!wordTimed) return if (now >= start) text.length.toFloat() else 0f

@@ -189,7 +189,9 @@ fun MusicLyricsPanel(modifier: Modifier = Modifier, showTranslation: Boolean = t
         contentPadding = PaddingValues(top = 42.dp, bottom = 180.dp, start = 26.dp, end = 26.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)) {
         itemsIndexed(lines, key = { i, line -> "$i:${line.start}:${line.text.hashCode()}" }) { i, line ->
-            val active = i == index
+            val active by remember(line, clock) { derivedStateOf {
+                clock.value >= line.start && clock.value < line.end
+            } }
             val distance = abs(i - index)
             val alpha by animateFloatAsState(if (active) 1f else if (browsing) .8f else when(distance) { 1 -> .8f; 2 -> .7f; 3 -> .58f; else -> .46f },
                 tween(400, easing = lyricEasing), label = "Lyric focus")
@@ -197,7 +199,9 @@ fun MusicLyricsPanel(modifier: Modifier = Modifier, showTranslation: Boolean = t
             Column(Modifier.fillMaxWidth().graphicsLayer { this.alpha = alpha; scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, .5f) }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSeek(line.start.toLong()) }) {
                 SweptLine(line, clock, active, alignRight = sides.getOrNull(line.sourceIndex) == true)
-                val secondary = if (showTranslation) subtitles.getOrNull(line.sourceIndex) else transliterations.getOrNull(line.sourceIndex)
+                val secondary = if (showTranslation) subtitles.getOrNull(line.sourceIndex)
+                    ?: MediaViewModelObject.lrcEntries.value.getOrNull(line.sourceIndex)?.lastOrNull()?.second?.takeIf { it.isNotBlank() }
+                    else transliterations.getOrNull(line.sourceIndex)
                 if (!secondary.isNullOrBlank()) Text(secondary, color = Color.White.copy(alpha = .65f), fontSize = 18.sp)
             }
         }
