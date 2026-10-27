@@ -151,6 +151,7 @@ fun Settings(navController: NavController) =
 
                         GroupSpacer()
                         ListHeader(stringResource(id = R.string.settings_stats))
+                        LabelItem(title = stringResource(R.string.page_stats_title)) { navController.toUI(UI.Stats) }
                         StatsDataSection()
                         ListHeader(content = stringResource(id = R.string.settings_stats_desc))
 

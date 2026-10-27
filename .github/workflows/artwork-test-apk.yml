@@ -2,7 +2,7 @@ name: Music optimized APK
 
 on:
   push:
-    branches: [fix/pixel-media-artwork]
+    branches: [fix/pixel-media-artwork, feature/octave-glass-library]
   workflow_dispatch:
 
 permissions:

@@ -62,7 +62,7 @@ fun BottomNavigator(
     val base = if (dark) Color(0xFF18181C) else Color(0xFFF4F4F7)
     val state = dockState.compact.value
     val morph by animateFloatAsState(if (state) 1f else 0f,
-        spring(dampingRatio = 1f, stiffness = 400f), label = "Dock collapse")
+        spring(dampingRatio = .86f, stiffness = 340f), label = "Dock collapse")
     var search by remember { mutableStateOf(false) }
     val selected = items.indexOfFirst { it.label == nowLabel() }.coerceAtLeast(0)
     Box(modifier.fillMaxWidth().graphicsLayer { alpha = opacity() }) {
@@ -72,7 +72,7 @@ fun BottomNavigator(
             val miniWidth = maxWidth - 104.dp * morph
             val buttonSize = (64f - 16f * morph).dp
             val bottomY = 68.dp * (1f - morph)
-            val navWidth = (maxWidth - 76.dp) * (1f - morph) + 48.dp * morph
+            val navWidth = maxWidth * (1f - morph) + 48.dp * morph
             val miniHeight = (56f - 8f * morph).dp
             GlassPill(Modifier.offset(x = miniX).width(miniWidth).height(miniHeight), hazeState, base, dark) {
                 MiniSongPill(morph, ink, onExpandPlayer)
@@ -80,8 +80,8 @@ fun BottomNavigator(
             GlassPill(Modifier.offset(y = bottomY).width(navWidth).height(buttonSize), hazeState, base, dark) {
                 if (morph < .99f) {
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = 1f - morph }) {
-                        GlassTabs(items, selected, ink) {
-                            dockState.expand(); onLabelChange(it)
+                        GlassTabs(items + NavItem("Search", 0), selected, ink) {
+                            if (it == "Search") search = true else { dockState.expand(); onLabelChange(it) }
                         }
                     }
                 }
@@ -92,7 +92,8 @@ fun BottomNavigator(
                     }
                 }
             }
-            GlassPill(Modifier.align(Alignment.TopEnd).offset(y = bottomY).size(buttonSize), hazeState, base, dark) {
+            if (morph > .01f) GlassPill(Modifier.align(Alignment.TopEnd).offset(y = bottomY).size(buttonSize)
+                .graphicsLayer { alpha = morph }, hazeState, base, dark) {
                 IconButton(onClick = { search = true }, modifier = Modifier.fillMaxSize()) {
                     Icon(Icons.Rounded.Search, "Search music", tint = ink.copy(alpha = .8f), modifier = Modifier.size(29.dp))
                 }
@@ -105,35 +106,29 @@ fun BottomNavigator(
 @Composable
 private fun GlassPill(modifier: Modifier, haze: HazeState?, base: Color, dark: Boolean,
     content: @Composable BoxScope.() -> Unit) {
-    val style = remember(base) { HazeStyle(backgroundColor = base,
-        tint = base.copy(alpha = if (dark) .35f else .44f), blurRadius = 12.dp, noiseFactor = 0f) }
-    val background = if (Build.VERSION.SDK_INT >= 31 && haze != null) Modifier.hazeChild(haze, style)
-        else Modifier.background(base.copy(alpha = .95f))
-    val gloss = remember(dark) { Brush.verticalGradient(listOf(Color.White.copy(alpha = if (dark) .13f else .48f),
-        Color.White.copy(alpha = .015f), Color.White.copy(alpha = .04f))) }
-    val rim = remember { Brush.linearGradient(listOf(Color.White.copy(alpha = .55f), Color.White.copy(alpha = .10f), Color.White.copy(alpha = .28f))) }
-    // Keep a base tint independent of the backdrop renderer. Combined with the
-    // haze tint this retains the original frosting, including after player dismissal.
-    Box(modifier.shadow(5.dp, CircleShape).clip(CircleShape).then(background)
-        .background(base.copy(alpha = .20f)).background(gloss)
-        .border(.8.dp, rim, CircleShape), content = content)
+    LiquidGlassSurface(modifier, haze, content)
 }
 
 @Composable
 private fun GlassTabs(items: List<NavItem>, selected: Int, ink: Color, onSelect: (String) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize().padding(5.dp)) {
         val width = maxWidth / items.size
-        val offset = animateDpAsState(width * selected, spring(dampingRatio = 1f, stiffness = 400f), label = "Dock tab")
+        val offset = animateDpAsState(width * selected, spring(dampingRatio = .86f, stiffness = 340f), label = "Dock tab")
         val direction = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1 else 1
         Box(Modifier.width(width).fillMaxHeight().graphicsLayer { translationX = offset.value.toPx() * direction }
-            .clip(CircleShape).background(ink.copy(alpha = .13f)))
+            .clip(CircleShape).background(ink.copy(alpha = .13f))
+            .border(1.dp, ink.copy(alpha = .12f), CircleShape))
         Row(Modifier.fillMaxSize().selectableGroup()) {
             items.forEachIndexed { index, item ->
                 Column(Modifier.weight(1f).fillMaxHeight().clip(CircleShape)
                     .selectable(index == selected, role = Role.Tab, onClick = { onSelect(item.label) }),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    val tint = if (index == selected) ink else ink.copy(alpha = .65f)
-                    Icon(painterResource(item.iconResId), null, tint = tint, modifier = Modifier.size(25.dp))
+                    val tint = if (index == selected) MusicGlassAccent else ink.copy(alpha = .90f)
+                    when (item.label) {
+                        "Search" -> Icon(Icons.Rounded.Search, null, tint = tint, modifier = Modifier.size(27.dp))
+                        "New" -> Icon(Icons.Rounded.GridView, null, tint = tint, modifier = Modifier.size(27.dp))
+                        else -> Icon(painterResource(item.iconResId), null, tint = tint, modifier = Modifier.size(27.dp))
+                    }
                     Text(item.label, color = tint, fontSize = 11.sp, lineHeight = 14.sp,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         fontWeight = if (index == selected) FontWeight.SemiBold else FontWeight.Medium)
@@ -172,7 +167,7 @@ private fun MiniSongPill(morph: Float, ink: Color, onExpand: () -> Unit) {
             .graphicsLayer { alpha = if (artworkMotion?.hasFlight == true) 0f else 1f }.clip(RoundedCornerShape((10f + 10f * morph).dp))
             .background(ink.copy(alpha = .1f)), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.MusicNote, null, tint = ink.copy(alpha = .7f))
-            AsyncImage(request, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            AsyncImage(request, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         }
         Column(Modifier.weight(1f).padding(start = 10.dp).height((38f - 18f * morph).dp), verticalArrangement = Arrangement.Center) {
             Text(track?.title ?: "Music", color = ink, fontSize = 16.sp, lineHeight = 20.sp,

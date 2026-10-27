@@ -95,6 +95,7 @@ fun ShadowImageWithCache(
     shadowOverlay: Boolean = false,
     cornerRadius: Dp = 8.dp,
     imageQuality: ImageQuality,
+    contentScale: ContentScale = ContentScale.Crop,
     overlayContent: (@Composable BoxScope.() -> Unit)? = null
 ) = YosWrapper {
     val shape = remember(cornerRadius) { YosRoundedCornerShape(cornerRadius) }
@@ -135,7 +136,7 @@ fun ShadowImageWithCache(
                 }
                 .build() },
             contentDescription = contentDescription.toString(),
-            contentScale = ContentScale.Crop,
+            contentScale = contentScale,
             modifier = Modifier.fillMaxSize()
         )
 

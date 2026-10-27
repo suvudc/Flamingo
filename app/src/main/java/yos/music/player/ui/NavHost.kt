@@ -19,6 +19,7 @@ interface UI {
     companion object {
         const val HomePage = "HomePage"
         const val Library = "Library"
+        const val Stats = "Stats"
 
         const val NormalMusic = "NormalMusic"
         const val PlayLists = "PlayLists"
