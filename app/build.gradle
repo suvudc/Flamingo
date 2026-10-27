@@ -240,3 +240,38 @@ configurations.all {
     }
 }
 
+
+// Exact lyric font assets from the pinned BitChord source. Generated at BUILD time,
+// verified before packaging, and bundled as Android resources (never fetched by the app).
+def bitChordFontRevision = "1189e6a566c9181111205f26a983f7984f9393ea"
+def bitChordFontHashes = [
+    semibold: "6c4fa1be203ec1b7a5135cf636d87e1e23a91a9aabd556309664251745fd8249",
+    bold: "9661ed5e91885b6a80cd458d5ef068db320574c2cb7c1ed2d77864fb91cb8adc",
+    heavy: "68020e8fbddc00c16ae939f337d65459632a1359f7b51656e14bf0d7140629d7"
+]
+def bitChordFontResources = layout.buildDirectory.dir("generated/bitchord-lyrics-res").get().asFile
+android.sourceSets.main.res.srcDir(bitChordFontResources)
+def prepareBitChordLyricsFonts = tasks.register("prepareBitChordLyricsFonts") {
+    inputs.property("sourceRevision", bitChordFontRevision)
+    inputs.property("fontHashes", bitChordFontHashes)
+    outputs.dir(bitChordFontResources)
+    doLast {
+        def fontDir = new File(bitChordFontResources, "font")
+        fontDir.mkdirs()
+        bitChordFontHashes.each { weight, expected ->
+            def target = new File(fontDir, "music_bitchord_${weight}.otf")
+            def sha256 = { byte[] bytes -> java.security.MessageDigest.getInstance("SHA-256").digest(bytes).encodeHex().toString() }
+            if (!target.exists() || sha256(target.bytes) != expected) {
+                def connection = new URL("https://raw.githubusercontent.com/suvudc/BitChord/${bitChordFontRevision}/app/src/main/res/font/sf_pro_display_${weight}.otf").openConnection()
+                connection.connectTimeout = 15000
+                connection.readTimeout = 30000
+                byte[] data = connection.inputStream.withCloseable { it.bytes }
+                if (sha256(data) != expected) throw new GradleException("BitChord ${weight} font checksum mismatch")
+                def temporary = new File(fontDir, target.name + ".tmp")
+                temporary.bytes = data
+                java.nio.file.Files.move(temporary.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            }
+        }
+    }
+}
+tasks.named("preBuild").configure { dependsOn(prepareBitChordLyricsFonts) }

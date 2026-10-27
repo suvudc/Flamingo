@@ -53,7 +53,7 @@ private fun rememberBitChordLines(): List<yos.music.player.code.lyrics.bitchord.
 }
 
 @Composable
-fun MainPlayerLyricStrip(modifier: Modifier = Modifier, onOpenLyrics: () -> Unit) {
+fun MainPlayerLyricStrip(modifier: Modifier = Modifier, onOpenLyrics: () -> Unit) = yos.music.player.ui.widgets.bitchord.BitChordLyricsTypography {
     val lines = rememberBitChordLines()
     val key = MediaController.musicPlaying.value?.uri.toString()
     val (head, advancing) = yos.music.player.ui.widgets.bitchord.rememberMusicLyricPlayhead(key)
@@ -69,7 +69,7 @@ fun MainPlayerLyricStrip(modifier: Modifier = Modifier, onOpenLyrics: () -> Unit
 @Composable
 fun MusicLyricsPanel(modifier: Modifier = Modifier, showTranslation: Boolean = true,
     controlsOpen: Boolean = true, onRevealControls: () -> Unit = {}, onHideControls: () -> Unit = {},
-    onSeek: (Long) -> Unit) {
+    onSeek: (Long) -> Unit) = yos.music.player.ui.widgets.bitchord.BitChordLyricsTypography {
     val lines = rememberBitChordLines()
     val key = MediaController.musicPlaying.value?.uri.toString()
     val (head, advancing) = yos.music.player.ui.widgets.bitchord.rememberMusicLyricPlayhead(key)
