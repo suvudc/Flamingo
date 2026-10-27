@@ -70,7 +70,8 @@ private fun rememberMusicLens(dark: Boolean): Modifier {
 @RequiresApi(33)
 private class MusicLens(dark: Boolean, density: Float) {
     private val shader = android.graphics.RuntimeShader(MusicGlassShader)
-    val effect = android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "backdrop").asComposeRenderEffect()
+    var effect: androidx.compose.ui.graphics.RenderEffect? = null
+        private set
     private var width = -1f
     private var height = -1f
     init {
@@ -82,6 +83,11 @@ private class MusicLens(dark: Boolean, density: Float) {
         if (w == width && h == height) return
         width = w; height = h
         shader.setFloatUniform("extent", w, h)
+        // RenderEffect snapshots its shader builder: update the cached effect only
+        // after dimensions are known, and rebuild it only when those dimensions change.
+        effect = runCatching {
+            android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "backdrop").asComposeRenderEffect()
+        }.getOrNull()
     }
 }
 
