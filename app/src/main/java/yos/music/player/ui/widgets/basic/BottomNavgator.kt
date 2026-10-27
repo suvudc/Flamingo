@@ -88,7 +88,11 @@ fun BottomNavigator(
                 if (morph > .5f) {
                     IconButton(onClick = { dockState.expand() }, modifier = Modifier.fillMaxSize()
                         .graphicsLayer { alpha = morph }) {
-                        Icon(Icons.Rounded.GridView, "Show navigation tabs", tint = ink, modifier = Modifier.size(25.dp))
+                        when (items[selected].iconResId) {
+                            yos.music.player.R.drawable.music_note -> Icon(Icons.Rounded.Home, "Show navigation tabs", tint = MusicGlassAccent, modifier = Modifier.size(25.dp))
+                            yos.music.player.R.drawable.ic_uitabbar_stats -> Icon(Icons.Rounded.GridView, "Show navigation tabs", tint = MusicGlassAccent, modifier = Modifier.size(25.dp))
+                            else -> Icon(painterResource(items[selected].iconResId), "Show navigation tabs", tint = MusicGlassAccent, modifier = Modifier.size(25.dp))
+                        }
                     }
                 }
             }
@@ -127,7 +131,9 @@ private fun GlassTabs(items: List<NavItem>, selected: Int, ink: Color, onSelect:
                     when (item.label) {
                         "Search" -> Icon(Icons.Rounded.Search, null, tint = tint, modifier = Modifier.size(27.dp))
                         "New" -> Icon(Icons.Rounded.GridView, null, tint = tint, modifier = Modifier.size(27.dp))
-                        else -> Icon(painterResource(item.iconResId), null, tint = tint, modifier = Modifier.size(27.dp))
+                        else -> if (item.iconResId == yos.music.player.R.drawable.music_note)
+                            Icon(Icons.Rounded.Home, null, tint = tint, modifier = Modifier.size(27.dp))
+                        else Icon(painterResource(item.iconResId), null, tint = tint, modifier = Modifier.size(27.dp))
                     }
                     Text(item.label, color = tint, fontSize = 11.sp, lineHeight = 14.sp,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
