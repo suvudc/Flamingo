@@ -121,6 +121,8 @@ import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import yos.music.player.ui.widgets.bitchord.lyricViewportHeightPx
 import yos.music.player.ui.widgets.basic.LocalPlayerArtworkMotion
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -421,6 +423,9 @@ fun NowPlaying(
             val scope = rememberCoroutineScope()
 
             val alphaAnim = remember { Animatable(0f) }
+            // Share the real seek-bar boundary with the lyric viewport. The
+            // translation row and control padding make a height fraction wrong.
+            val lyricSeekBarTop = remember { mutableFloatStateOf(Float.NaN) }
 
             YosWrapper {
                 LaunchedEffect(nowPageLambda()) {
@@ -469,6 +474,7 @@ fun NowPlaying(
                         isTtmlLyrics = { isTtmlLyrics.value },
                         weightLambda = { showControl.value },
                         translationLambda = { translation.value },
+                        seekBarTop = { lyricSeekBarTop.floatValue },
                         onHideControls = { showControl.value = false },
                         onBackClick = {
                             showControl.value = true
@@ -762,6 +768,11 @@ fun NowPlaying(
                                     }
 
                                     PlayerControl(
+                                        onSeekBarTopChanged = { top ->
+                                            if (nowPageLambda() == Lyric && showControl.value) {
+                                                lyricSeekBarTop.floatValue = top
+                                            }
+                                        },
                                         isPlayingLambda = isPlayingStatusLambda,
                                         isPlayingOnChanged = isPlayingOnChanged,
                                         onPrevious = {
@@ -1651,6 +1662,7 @@ private fun Lyric(
     isTtmlLyrics: () -> Boolean,
     weightLambda: () -> Boolean,
     translationLambda: () -> Boolean,
+    seekBarTop: () -> Float,
     mainViewModel: MainViewModel,
     mediaViewModel: MediaViewModel,
     onBackClick: () -> Unit,
@@ -1661,17 +1673,22 @@ private fun Lyric(
     val statusTop = with(density) {
         maxOf(WindowInsets.statusBars.getTop(this), WindowInsets.displayCutout.getTop(this)).toDp()
     }
-    BoxWithConstraints(Modifier.fillMaxSize().padding(top = statusTop)) {
-        // Match the control host's 43.7% height, plus its translation action.
-        // Reserve the space BEFORE measuring the header and list, rather than
-        // taking 56% of the space remaining after the header.
-        val controlsHeight = if (weightLambda()) maxHeight * .437f + 38.dp else 0.dp
-        Column(Modifier.fillMaxSize().padding(top = 154.dp, bottom = controlsHeight).clipToBounds()) {
-            MusicLyricsPanel(Modifier.fillMaxWidth().weight(1f).clipToBounds(),
+    BoxWithConstraints(Modifier.fillMaxSize().padding(top = statusTop + 154.dp)) {
+        var panelTop by remember { mutableFloatStateOf(Float.NaN) }
+        val viewportHeight = lyricViewportHeightPx(
+            panelTop = panelTop,
+            seekBarTop = seekBarTop(),
+            availableHeight = constraints.maxHeight.toFloat(),
+            controlsVisible = weightLambda(),
+            clearance = with(density) { 8.dp.toPx() },
+        )
+        MusicLyricsPanel(Modifier.fillMaxWidth()
+                .height(with(density) { viewportHeight.toDp() })
+                .onGloballyPositioned { panelTop = it.positionInRoot().y }
+                .clipToBounds(),
                 showTranslation = translationLambda(), controlsOpen = weightLambda(),
                 onRevealControls = onBackClick, onHideControls = onHideControls,
                 onSeek = { onBackClick(); mediaControl?.seekTo(it) })
-        }
     }
 }
 
@@ -2315,6 +2332,7 @@ private fun BluetoothDevice.isConnected(): Boolean {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlayerControl(
+    onSeekBarTopChanged: (Float) -> Unit = {},
     isPlayingLambda: () -> Boolean,
     isPlayingOnChanged: (Boolean) -> Unit,
     onPrevious: () -> Unit,
@@ -2420,6 +2438,7 @@ private fun PlayerControl(
                             inactiveTrackColor = Color(0x0DFFFFFF)
                         ),
                         modifier = Modifier
+                            .onGloballyPositioned { onSeekBarTopChanged(it.positionInRoot().y) }
                             .overlayEffect()
                             .alpha(0.45f)
                             .height(14.dp),
