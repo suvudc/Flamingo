@@ -28,8 +28,9 @@ for label in New Library Home; do
   adb pull /sdcard/music-window.xml runtime-diagnostics/window.xml
   python scripts/android-runtime-tap.py "$label"
   sleep 2
+  adb exec-out screencap -p > "runtime-diagnostics/screen-$label.png"
 done
 adb shell uiautomator dump /sdcard/music-window.xml
 adb pull /sdcard/music-window.xml runtime-diagnostics/window.xml
-adb shell dumpsys activity activities | grep -q 'mResumedActivity.*yos.music.player.music/.*MainActivity'
+adb shell dumpsys activity activities | grep -Eq '(mResumedActivity|topResumedActivity|ResumedActivity).*yos[.]music[.]player[.]music/.*MainActivity'
 echo 'Music stayed open and navigated Home, New and Library on Android 15.'

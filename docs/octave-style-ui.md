@@ -49,3 +49,12 @@ sibling outside the source and retains its actual backdrop blur. A runtime
 workflow builds the optimized x86_64 variant and launches/navigates it on an
 Android emulator, collecting logcat, activity state, screenshot and R8 mapping.
 Phone APK ABI defaults and its signing identity are unchanged.
+
+Runtime evidence: baseline run 40446975400 reproduced SIGSEGV on RenderThread
+with repeating libhwui RenderNode::prepareTreeImpl frames. Patched run
+40447177751 launched and tapped New, Library and Home; its final screenshot
+shows Home and its activity dump identifies MainActivity as topResumedActivity.
+That run's final shell assertion used the old mResumedActivity field name and
+returned a false failure. The assertion now accepts current Android field names,
+and was checked against the captured real activity dump. Phone APK run
+40447177746 passed all 66 JVM tests; APK integrity and matching signer verified.
