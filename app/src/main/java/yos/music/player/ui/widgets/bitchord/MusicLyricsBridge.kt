@@ -1,6 +1,9 @@
 package yos.music.player.ui.widgets.bitchord
 
 import android.os.Build
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -80,3 +83,11 @@ internal fun Modifier.fadingEdges(): Modifier = graphicsLayer(compositingStrateg
         drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black), 0f, fade), blendMode = BlendMode.DstIn)
         drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), size.height - fade, size.height), blendMode = BlendMode.DstIn)
     }
+
+// BitChord's Android implementation (PlayerPlatformUi.android.kt), GPL-3.0.
+internal fun DrawScope.clipShiftedDown(left: Float, top: Float, right: Float, bottom: Float,
+    dy: Float, block: DrawScope.() -> Unit) {
+    clipRect(left = left, top = top, right = right, bottom = bottom) {
+        translate(top = dy) { block() }
+    }
+}

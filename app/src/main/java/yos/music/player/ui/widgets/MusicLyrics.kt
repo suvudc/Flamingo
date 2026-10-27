@@ -77,13 +77,16 @@ fun MusicLyricsPanel(modifier: Modifier = Modifier, showTranslation: Boolean = t
     val transliterations = MediaViewModelObject.lyricLineTransliterations.toList()
     val entries = MediaViewModelObject.lrcEntries.value
     val secondary = remember(lines, subtitles, transliterations, entries, showTranslation) {
-        lines.map { line ->
+        val texts = lines.map { line ->
             val source = entries.indexOfFirst { it.firstOrNull()?.first?.toLong() == line.timeMs }
             val text = if (showTranslation) subtitles.getOrNull(source)
                 ?: entries.getOrNull(source)?.lastOrNull()?.second?.takeIf { it.isNotBlank() }
                 else transliterations.getOrNull(source)
-            line.copy(text = text.orEmpty(), words = emptyList(), background = null, timingSource = line)
-        }.takeIf { it.any { line -> line.text.isNotBlank() } }
+            text?.takeIf { it.isNotBlank() }
+        }
+        if (texts.none { it != null }) null else lines.mapIndexed { i, line ->
+            line.copy(text = texts[i] ?: line.text, words = emptyList(), background = null, timingSource = line)
+        }
     }
     yos.music.player.ui.widgets.bitchord.LyricsPanel(
         lines = lines, subLines = secondary, trackKey = key, playhead = head,
