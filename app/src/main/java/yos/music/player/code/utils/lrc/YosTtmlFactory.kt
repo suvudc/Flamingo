@@ -78,7 +78,8 @@ class YosTtmlFactory {
                 otherSideForLines = otherSideForLines,
                 transliterations = transliterations,
                 subtitles = subtitles,
-                isTtml = true
+                isTtml = true,
+                bitChordLines = yos.music.player.code.lyrics.bitchord.TtmlLyrics.parse(ttmlText)
             )
         }.getOrNull()
     }

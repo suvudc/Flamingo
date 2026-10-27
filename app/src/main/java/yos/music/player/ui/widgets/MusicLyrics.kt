@@ -38,186 +38,59 @@ import yos.music.player.data.libraries.SettingsLibrary
 import yos.music.player.data.objects.MediaViewModelObject
 import kotlin.math.*
 
-// Adapted motion values from suvudc/BitChord PlayerLyrics.kt (GPL-3.0):
-// soft 30dp sweep, 2dp word lift, 400ms handover, 340ms strip slide.
-private val lyricEasing = CubicBezierEasing(.41f, 0f, .12f, .99f)
-
+/** Host integration; drawing and animation live in the ported BitChord sources. */
 @Composable
-private fun rememberLyricsClock(): State<Float> {
-    val clock = remember { mutableFloatStateOf(0f) }
-    val owner = LocalLifecycleOwner.current
-    LaunchedEffect(owner) {
-        while (true) {
-            if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                if (MediaViewModelObject.isPlaying.value) withFrameNanos {
-                    clock.floatValue = (MediaController.mediaControl?.currentPosition ?: 0).toFloat()
-                } else {
-                    clock.floatValue = (MediaController.mediaControl?.currentPosition ?: 0).toFloat()
-                    delay(80)
-                }
-            } else delay(250)
-        }
-    }
-    return clock
-}
-
-@Composable
-private fun rememberTimeline(): List<LyricLine> {
+private fun rememberBitChordLines(): List<yos.music.player.code.lyrics.bitchord.LyricLine> {
     val entries = MediaViewModelObject.lrcEntries.value
+    val raw = MediaViewModelObject.bitChordLines.value
     val ends = MediaViewModelObject.lyricLineEndTimes.toList()
-    return remember(entries, ends) { lyricTimeline(entries, ends) }
-}
-
-/** Text layout is cached; only the active line reads the playback clock during drawing. */
-@Composable
-private fun SweptLine(line: LyricLine, clock: State<Float>, active: Boolean,
-    modifier: Modifier = Modifier, compact: Boolean = false, alignRight: Boolean = false) {
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    val style = remember(compact) { TextStyle(fontSize = if (compact) 16.sp else 32.sp,
-        lineHeight = if (compact) 23.sp else 39.sp, fontWeight = FontWeight.Bold,
-        color = Color.White) }
-    BoxWithConstraints(modifier) {
-        val maxPx = with(density) { maxWidth.roundToPx() }.coerceAtLeast(1)
-        val layout = remember(line.text, maxPx, style, density) {
-            measurer.measure(AnnotatedString(line.text), style, maxLines = if (compact) 1 else Int.MAX_VALUE,
-                overflow = if (compact) TextOverflow.Ellipsis else TextOverflow.Clip,
-                constraints = Constraints(maxWidth = maxPx))
-        }
-        val height = with(density) { layout.size.height.toDp() + 8.dp }
-        Spacer(Modifier.fillMaxWidth().height(height).semantics { contentDescription = line.text }.drawWithCache {
-            val inset = 4.dp.toPx()
-            val shiftX = if (alignRight) (size.width - layout.size.width).coerceAtLeast(0f) else 0f
-            val feather = (if (compact) 16.dp else 30.dp).toPx()
-            onDrawBehind {
-                translate(shiftX, inset) {
-                    val now = if (active) clock.value else line.start - 1f
-                    val sung = if (active) line.sungCharacters(now) else 0f
-                    val moving = if (active && line.wordTimed && !compact)
-                        line.words.firstOrNull { now >= it.start && now < it.end } else null
-                    val lift = moving?.let { word ->
-                        val p = ((now - word.start) / (word.end - word.start).coerceAtLeast(1f)).coerceIn(0f, 1f)
-                        2.dp.toPx() * sin(PI.toFloat() * p)
-                    } ?: 0f
-                    for (visual in 0 until layout.lineCount) {
-                        val start = layout.getLineStart(visual)
-                        val end = layout.getLineEnd(visual, visibleEnd = true)
-                        if (end <= start) continue
-                        val top = layout.getLineTop(visual)
-                        val bottom = layout.getLineBottom(visual)
-                        val rtl = layout.getParagraphDirection(start) == ResolvedTextDirection.Rtl
-                        val character = floor(sung).toInt().coerceIn(start, end - 1)
-                        val box = layout.getBoundingBox(character)
-                        val fraction = sung - floor(sung)
-                        val boundary = when {
-                            sung >= end -> if (rtl) layout.getLineLeft(visual) - feather else layout.getLineRight(visual) + feather
-                            sung <= start -> if (rtl) layout.getLineRight(visual) + feather else layout.getLineLeft(visual) - feather
-                            rtl -> box.right - box.width * fraction
-                            else -> box.left + box.width * fraction
-                        }
-                        val wipe = Brush.horizontalGradient(
-                            if (rtl) listOf(Color.Transparent, Color.White) else listOf(Color.White, Color.Transparent),
-                            startX = boundary - feather / 2, endX = boundary + feather / 2)
-                        fun androidx.compose.ui.graphics.drawscope.DrawScope.segment(left: Float, right: Float, rise: Float) {
-                            if (right <= left) return
-                            clipRect(left, top - inset, right, bottom + inset) {
-                                translate(0f, -rise) {
-                                    drawText(layout, color = Color.White.copy(alpha = if (compact) .55f else .45f))
-                                    if (active) {
-                                        if (!line.wordTimed) drawText(layout, color = Color.White)
-                                        else drawText(layout, brush = wipe)
-                                    }
-                                }
-                            }
-                        }
-                        val first = moving?.from?.coerceAtLeast(start)
-                        val last = moving?.until?.coerceAtMost(end)
-                        if (first != null && last != null && last > first) {
-                            val a = layout.getBoundingBox(first)
-                            val b = layout.getBoundingBox(last - 1)
-                            val left = min(a.left, b.left); val right = max(a.right, b.right)
-                            segment(0f, left, 0f); segment(left, right, lift); segment(right, layout.size.width.toFloat(), 0f)
-                        } else segment(0f, layout.size.width.toFloat(), 0f)
-                    }
-                }
-            }
-        })
+    val sides = MediaViewModelObject.otherSideForLines.toList()
+    return remember(entries, raw, ends, sides) {
+        if (entries.isEmpty()) emptyList()
+        else raw?.takeIf { it.isNotEmpty() }
+            ?: yos.music.player.code.lyrics.bitchord.fromLegacyLyrics(entries, ends, sides)
     }
 }
 
 @Composable
 fun MainPlayerLyricStrip(modifier: Modifier = Modifier, onOpenLyrics: () -> Unit) {
-    val lines = rememberTimeline()
-    val clock = rememberLyricsClock()
-    val index by remember(lines, clock) { derivedStateOf { displayLyricIndex(lines, clock.value) } }
-    val line = lines.getOrNull(index)
-    Row(modifier.fillMaxWidth().height(34.dp).clipToBounds().semantics { contentDescription = "Open lyrics" }.clickable(
-        interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onOpenLyrics),
-        verticalAlignment = Alignment.CenterVertically) {
-        AnimatedContent(targetState = index, label = "Current lyric", modifier = Modifier.weight(1f).clipToBounds(),
-            transitionSpec = { (fadeIn(tween(340)) + slideInVertically(tween(340, easing = lyricEasing)) { it / 3 }) togetherWith
-                (fadeOut(tween(260)) + slideOutVertically(tween(340, easing = lyricEasing)) { -it / 3 }) }) { shown ->
-            val shownLine = lines.getOrNull(shown)
-            if (shownLine != null) SweptLine(shownLine, clock, active = shown == index, compact = true)
-            else Text("",
-                color = Color.White.copy(alpha = .55f), fontSize = 15.sp, maxLines = 1)
-        }
-        Icon(Icons.Rounded.ChevronRight, "Open lyrics", tint = Color.White.copy(alpha = .6f), modifier = Modifier.size(20.dp))
+    val lines = rememberBitChordLines()
+    val key = MediaController.musicPlaying.value?.uri.toString()
+    val (head, advancing) = yos.music.player.ui.widgets.bitchord.rememberMusicLyricPlayhead(key)
+    Box(modifier.fillMaxWidth().height(34.dp).clipToBounds().semantics { contentDescription = "Open lyrics" },
+        contentAlignment = Alignment.CenterStart) {
+        if (lines.isNotEmpty()) yos.music.player.ui.widgets.bitchord.CurrentLyricLine(
+            lines, key, head, MediaViewModelObject.isPlaying.value && advancing,
+            0L, onOpenLyrics, Modifier.fillMaxWidth())
+        else Box(Modifier.fillMaxSize().clickable(onClick = onOpenLyrics))
     }
 }
 
 @Composable
-fun MusicLyricsPanel(modifier: Modifier = Modifier, showTranslation: Boolean = true, onSeek: (Long) -> Unit) {
-    val lines = rememberTimeline()
-    val clock = rememberLyricsClock()
-    val index by remember(lines, clock) { derivedStateOf { activeLyricIndex(lines, clock.value) } }
-    val list = rememberLazyListState()
-    var viewport by remember { mutableIntStateOf(0) }
-    val browsing by remember { derivedStateOf { list.isScrollInProgress } }
-    val sides = MediaViewModelObject.otherSideForLines
-    val subtitles = MediaViewModelObject.lyricLineSubtitles
-    val transliterations = MediaViewModelObject.lyricLineTransliterations
-    LaunchedEffect(index, lines) {
-        if (index < 0 || list.isScrollInProgress) return@LaunchedEffect
-        val target = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
-        if (target == null) list.scrollToItem((index - 1).coerceAtLeast(0))
-        withFrameNanos { }
-        list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }?.let {
-            list.animateScrollBy(it.offset - viewport * .32f, tween(400, easing = lyricEasing))
-        }
+fun MusicLyricsPanel(modifier: Modifier = Modifier, showTranslation: Boolean = true,
+    controlsOpen: Boolean = true, onRevealControls: () -> Unit = {}, onHideControls: () -> Unit = {},
+    onSeek: (Long) -> Unit) {
+    val lines = rememberBitChordLines()
+    val key = MediaController.musicPlaying.value?.uri.toString()
+    val (head, advancing) = yos.music.player.ui.widgets.bitchord.rememberMusicLyricPlayhead(key)
+    val subtitles = MediaViewModelObject.lyricLineSubtitles.toList()
+    val transliterations = MediaViewModelObject.lyricLineTransliterations.toList()
+    val entries = MediaViewModelObject.lrcEntries.value
+    val secondary = remember(lines, subtitles, transliterations, entries, showTranslation) {
+        lines.map { line ->
+            val source = entries.indexOfFirst { it.firstOrNull()?.first?.toLong() == line.timeMs }
+            val text = if (showTranslation) subtitles.getOrNull(source)
+                ?: entries.getOrNull(source)?.lastOrNull()?.second?.takeIf { it.isNotBlank() }
+                else transliterations.getOrNull(source)
+            line.copy(text = text.orEmpty(), words = emptyList(), background = null, timingSource = line)
+        }.takeIf { it.any { line -> line.text.isNotBlank() } }
     }
-    if (lines.isEmpty()) Box(modifier, contentAlignment = Alignment.Center) {
-        Text(if (MediaViewModelObject.lyricsDownloading.value) "Finding lyrics…" else "No lyrics yet. Choose a provider above.",
-            color = Color.White.copy(alpha = .6f), modifier = Modifier.padding(24.dp))
-    } else LazyColumn(modifier.clipToBounds().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-        .drawWithCache {
-            val mask = Brush.verticalGradient(0f to Color.Transparent, .12f to Color.White,
-                .78f to Color.White, 1f to Color.Transparent)
-            onDrawWithContent { drawContent(); drawRect(mask, blendMode = BlendMode.DstIn) }
-        }.onSizeChanged { viewport = it.height }, state = list,
-        contentPadding = PaddingValues(top = 42.dp, bottom = 180.dp, start = 26.dp, end = 26.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp)) {
-        itemsIndexed(lines, key = { i, line -> "$i:${line.start}:${line.text.hashCode()}" }) { i, line ->
-            val active by remember(line, clock) { derivedStateOf {
-                clock.value >= line.start && clock.value < line.end
-            } }
-            val distance = abs(i - index)
-            val alpha by animateFloatAsState(if (active) 1f else if (browsing) .8f else when(distance) { 1 -> .8f; 2 -> .7f; 3 -> .58f; else -> .46f },
-                tween(400, easing = lyricEasing), label = "Lyric focus")
-            val scale by animateFloatAsState(if (active) 1f else .98f, tween(400, easing = lyricEasing), label = "Lyric scale")
-            val blur by animateDpAsState(if (active || browsing || distance <= 1) 0.dp
-                else (distance * 1.25f).coerceAtMost(4f).dp,
-                tween(400, easing = lyricEasing), label = "Lyric soft focus")
-            Column(Modifier.fillMaxWidth().blur(blur).graphicsLayer { this.alpha = alpha; scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, .5f) }
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSeek(line.start.toLong()) }) {
-                SweptLine(line, clock, active, alignRight = sides.getOrNull(line.sourceIndex) == true)
-                val secondary = if (showTranslation) subtitles.getOrNull(line.sourceIndex)
-                    ?: MediaViewModelObject.lrcEntries.value.getOrNull(line.sourceIndex)?.lastOrNull()?.second?.takeIf { it.isNotBlank() }
-                    else transliterations.getOrNull(line.sourceIndex)
-                if (!secondary.isNullOrBlank()) Text(secondary, color = Color.White.copy(alpha = .65f), fontSize = 18.sp)
-            }
-        }
-    }
+    yos.music.player.ui.widgets.bitchord.LyricsPanel(
+        lines = lines, subLines = secondary, trackKey = key, playhead = head,
+        looking = MediaViewModelObject.lyricsDownloading.value,
+        isPlaying = MediaViewModelObject.isPlaying.value && advancing,
+        onSeekToLine = onSeek, controlsOpen = controlsOpen, onRevealControls = onRevealControls, onHideControls = onHideControls,
+        modifier = modifier.clipToBounds())
 }
 
 @Composable

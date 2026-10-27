@@ -1273,6 +1273,7 @@ class YosPlaybackService : MediaSessionService() {
     }
 
     private fun applyParsedLyrics(parsedLyrics: YosParsedLyricData) {
+        MediaViewModelObject.bitChordLines.value = parsedLyrics.bitChordLines
         MediaViewModelObject.lrcEntries.value = parsedLyrics.entries
         MediaViewModelObject.otherSideForLines.clear()
         MediaViewModelObject.otherSideForLines.addAll(parsedLyrics.otherSideForLines)

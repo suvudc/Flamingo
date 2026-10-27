@@ -469,6 +469,7 @@ fun NowPlaying(
                         isTtmlLyrics = { isTtmlLyrics.value },
                         weightLambda = { showControl.value },
                         translationLambda = { translation.value },
+                        onHideControls = { showControl.value = false },
                         onBackClick = {
                             showControl.value = true
                             lastClickTime.longValue =
@@ -1652,7 +1653,8 @@ private fun Lyric(
     translationLambda: () -> Boolean,
     mainViewModel: MainViewModel,
     mediaViewModel: MediaViewModel,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onHideControls: () -> Unit
 ) = YosWrapper {
 
     val density = LocalDensity.current
@@ -1666,7 +1668,9 @@ private fun Lyric(
         val controlsHeight = if (weightLambda()) maxHeight * .437f + 38.dp else 0.dp
         Column(Modifier.fillMaxSize().padding(top = 154.dp, bottom = controlsHeight).clipToBounds()) {
             MusicLyricsPanel(Modifier.fillMaxWidth().weight(1f).clipToBounds(),
-                showTranslation = translationLambda(), onSeek = { onBackClick(); mediaControl?.seekTo(it) })
+                showTranslation = translationLambda(), controlsOpen = weightLambda(),
+                onRevealControls = onBackClick, onHideControls = onHideControls,
+                onSeek = { onBackClick(); mediaControl?.seekTo(it) })
         }
     }
 }
