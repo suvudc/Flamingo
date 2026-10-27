@@ -9,7 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.input.nestedscroll.*
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -76,13 +76,44 @@ internal fun keepScrollInList(listState: LazyListState) = object : NestedScrollC
         if (available.y > 0f && !listState.canScrollBackward) available else Velocity.Zero
     override suspend fun onPostFling(consumed: Velocity, available: Velocity) = available
 }
+// Keep this local to the lyric viewport: fading the player would wash out the
+// seek bar and translation button too. Cache the masks until its size changes.
+internal val LYRICS_BOTTOM_REVEAL = 96.dp
 internal fun Modifier.fadingEdges(): Modifier = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-    .drawWithContent {
-        drawContent()
-        val fade = 28.dp.toPx()
-        drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black), 0f, fade), blendMode = BlendMode.DstIn)
-        drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), size.height - fade, size.height), blendMode = BlendMode.DstIn)
+    .drawWithCache {
+        val topFade = 28.dp.toPx().coerceAtMost(size.height / 2f)
+        val bottomFade = LYRICS_BOTTOM_REVEAL.toPx().coerceAtMost(size.height * .42f)
+        val topMask = Brush.verticalGradient(listOf(Color.Transparent, Color.Black), 0f, topFade)
+        // Approximate smoothstep with stops so the line arrives gently rather
+        // than reaching full opacity at an obvious linear-gradient boundary.
+        val bottomMask = Brush.verticalGradient(
+            0f to Color.Black, .25f to Color.Black.copy(alpha = .844f),
+            .5f to Color.Black.copy(alpha = .5f), .75f to Color.Black.copy(alpha = .156f),
+            1f to Color.Transparent,
+            startY = size.height - bottomFade, endY = size.height,
+        )
+        onDrawWithContent {
+            drawContent()
+            drawRect(topMask, blendMode = BlendMode.DstIn)
+            drawRect(bottomMask, blendMode = BlendMode.DstIn)
+        }
     }
+
+/** Reuse GPU blur effects; scrolling changes only a row's layer properties. */
+@Composable
+internal fun rememberLyricsEdgeBlurEffects(): List<RenderEffect?> {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    return remember(density) {
+        List(25) { step ->
+            if (step == 0 || !renderEffectBlurSupported) null
+            else {
+                val radius = with(density) { (step * .25f).dp.toPx() }
+                android.graphics.RenderEffect.createBlurEffect(radius, radius,
+                    android.graphics.Shader.TileMode.DECAL).asComposeRenderEffect()
+            }
+        }
+    }
+}
 
 // BitChord's Android implementation (PlayerPlatformUi.android.kt), GPL-3.0.
 internal fun DrawScope.clipShiftedDown(left: Float, top: Float, right: Float, bottom: Float,

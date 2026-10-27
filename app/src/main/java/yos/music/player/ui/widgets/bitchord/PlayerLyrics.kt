@@ -1465,6 +1465,8 @@ internal fun LyricsPanel(
     // the blur and the movement are one gesture.
     val focusLine = if (leadLine >= 0) leadLine else scrollLine
     val listState = rememberLazyListState()
+    val edgeBlurEffects = rememberLyricsEdgeBlurEffects()
+    val bottomRevealPx = with(LocalDensity.current) { LYRICS_BOTTOM_REVEAL.toPx() }
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }.collect(onScrollingChange)
     }
@@ -1944,6 +1946,19 @@ internal fun LyricsPanel(
                                 )
                                 )
                         }
+                        // Incoming words emerge from the bottom's soft focus.
+                        // Read scroll geometry here, not in composition: only
+                        // the visible row layers update as the list moves.
+                        val info = listState.layoutInfo
+                        val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+                        val revealHeight = bottomRevealPx.coerceAtMost(info.viewportSize.height * .42f)
+                        val depth = if (item == null || revealHeight <= 0f || browsing || isActive) 0f else {
+                            val middle = item.offset + translationY + item.size * .5f
+                            ((middle - (info.viewportEndOffset - revealHeight)) / revealHeight)
+                                .coerceIn(0f, 1f)
+                        }
+                        val easedDepth = depth * depth * (3f - 2f * depth)
+                        renderEffect = edgeBlurEffects[(easedDepth * edgeBlurEffects.lastIndex).roundToInt()]
                     }
                     .blur(blur, BlurredEdgeTreatment.Unbounded)
                     .clip(RoundedCornerShape(10.dp))
