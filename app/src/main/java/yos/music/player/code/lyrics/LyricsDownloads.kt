@@ -28,12 +28,13 @@ object LyricsDownloads {
     private val client = OkHttpClient.Builder().callTimeout(6, TimeUnit.SECONDS)
         .connectTimeout(3, TimeUnit.SECONDS).build()
     private fun store(context: Context) = OfflineLyricsStore(File(context.filesDir, "downloaded-lyrics"))
-    private fun key(store: OfflineLyricsStore, song: YosMediaItem) =
-        store.key(song.title.orEmpty(), song.artistsName.orEmpty(), song.album.orEmpty(), song.duration)
+    private fun key(store: OfflineLyricsStore, song: YosMediaItem, provider: LyricsProvider) =
+        store.key(song.title.orEmpty(), song.artistsName.orEmpty(), song.album.orEmpty(), song.duration, provider.id)
 
-    suspend fun load(context: Context, song: YosMediaItem, refresh: Boolean = false): Download? = withContext(Dispatchers.IO) {
+    suspend fun load(context: Context, song: YosMediaItem, refresh: Boolean = false, provider: LyricsProvider = LyricsProvider.Auto): Download? = withContext(Dispatchers.IO) {
+        if (provider == LyricsProvider.Local) return@withContext null
         val disk = store(context)
-        val key = key(disk, song)
+        val key = key(disk, song, provider)
         val cached = disk.read(key)?.let { raw ->
             runCatching {
                 val obj = JsonParser.parseString(raw).asJsonObject
@@ -45,12 +46,18 @@ object LyricsDownloads {
         val artist = song.artistsName?.takeIf { it.isNotBlank() } ?: return@withContext cached
         val album = song.album.orEmpty()
         val candidates = supervisorScope {
-            listOf<suspend () -> Pair<String, String>?>(
-                { lrcRed(title, artist, song.duration) },
-                { bini(title, artist, album, song.duration) },
-                { better(title, artist, album, song.duration) },
-                { lrcLib(title, artist, album, song.duration) }
-            ).map { source -> async {
+            val sources: List<suspend () -> Pair<String, String>?> = when (provider) {
+                LyricsProvider.Auto -> listOf({ lrcRed(title, artist, song.duration) },
+                    { bini(title, artist, album, song.duration) },
+                    { better(title, artist, album, song.duration) },
+                    { lrcLib(title, artist, album, song.duration) })
+                LyricsProvider.LrcRed -> listOf({ lrcRed(title, artist, song.duration) })
+                LyricsProvider.Bini -> listOf({ bini(title, artist, album, song.duration) })
+                LyricsProvider.Better -> listOf({ better(title, artist, album, song.duration) })
+                LyricsProvider.LrcLib -> listOf({ lrcLib(title, artist, album, song.duration) })
+                LyricsProvider.Local -> emptyList()
+            }
+            sources.map { source -> async {
                 runCatching { source() }.getOrNull()?.let { (name, raw) ->
                     OnlineLyrics.parse(raw)?.let { Triple(name, raw, it) }
                 }

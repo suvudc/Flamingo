@@ -163,6 +163,7 @@ import yos.music.player.ui.theme.withNight
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.zIndex
 import yos.music.player.ui.widgets.basic.rememberGlassDockScrollState
+import yos.music.player.ui.widgets.basic.playerDismissGesture
 import yos.music.player.ui.widgets.basic.playerSheetTargetOpen
 import yos.music.player.ui.widgets.basic.playerSheetProgress
 import yos.music.player.ui.widgets.basic.StartupBrand
@@ -656,6 +657,14 @@ class MainActivity : BaseActivity() {
                                     offsetY.snapTo((offsetY.value + delta).coerceIn(0f, parentHeight.intValue.toFloat()))
                                 }
                             }
+                            val settlePlayer: (Float) -> Unit = { velocity ->
+                                if (!artworkMotion.closing) scope.launch {
+                                    if (playerSheetTargetOpen(yosBottomSheetConfig.progress, velocity)) {
+                                        offsetY.animateTo(parentHeight.intValue.toFloat(), initialVelocity = velocity, animationSpec = navSpec)
+                                        artworkMotion.settled = true
+                                    } else minimizePlayer(velocity)
+                                }
+                            }
                             Surface(
                                 modifier = Modifier.fillMaxSize().zIndex(1f)
                                     .graphicsLayer {
@@ -673,22 +682,20 @@ class MainActivity : BaseActivity() {
                                             scaleY = 1f
                                         }
                                     }
-                                    .draggable(
+                                    .then(if (nowPageNowPlaying.value == Album) {
+                                        Modifier.playerDismissGesture(!artworkMotion.closing,
+                                            onDelta = { delta ->
+                                                if (!artworkMotion.closing) scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                                    offsetY.snapTo((offsetY.value + delta).coerceIn(0f, parentHeight.intValue.toFloat()))
+                                                }
+                                            }, onRelease = settlePlayer)
+                                    } else Modifier.draggable(
                                         enabled = !artworkMotion.closing,
                                         orientation = Orientation.Vertical,
                                         reverseDirection = true,
                                         state = dragState,
-                                        onDragStopped = { velocity ->
-                                            if (!artworkMotion.closing) scope.launch {
-                                                if (playerSheetTargetOpen(yosBottomSheetConfig.progress, velocity)) {
-                                                    offsetY.animateTo(parentHeight.intValue.toFloat(), initialVelocity = velocity, animationSpec = navSpec)
-                                                    artworkMotion.settled = true
-                                                } else {
-                                                    minimizePlayer(velocity)
-                                                }
-                                            }
-                                        }
-                                    ),
+                                        onDragStopped = { settlePlayer(it) }
+                                    )),
                                 color = Color.White withNight Color.Black
                             ) {
                                 val isPlaying = MediaViewModelObject.isPlaying

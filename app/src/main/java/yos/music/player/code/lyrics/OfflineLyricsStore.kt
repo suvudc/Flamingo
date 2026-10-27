@@ -6,9 +6,10 @@ import java.util.UUID
 
 /** Durable downloads, separate from Android's evictable cache directory. */
 class OfflineLyricsStore(private val directory: File) {
-    fun key(title: String, artist: String, album: String, durationMs: Long): String =
+    fun key(title: String, artist: String, album: String, durationMs: Long, provider: String = "auto"): String =
         MessageDigest.getInstance("SHA-256").digest(
-            listOf(title.trim(), artist.trim(), album.trim(), durationMs.toString()).joinToString("\u0000").toByteArray()
+            (listOf(title.trim(), artist.trim(), album.trim(), durationMs.toString()) +
+                if (provider == "auto") emptyList() else listOf(provider)).joinToString("\u0000").toByteArray()
         ).joinToString("") { "%02x".format(it) }
 
     private fun file(key: String): File {

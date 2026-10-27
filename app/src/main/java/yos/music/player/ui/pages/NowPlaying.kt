@@ -185,6 +185,9 @@ import yos.music.player.ui.theme.YosRoundedCornerShape
 import yos.music.player.ui.UI
 import yos.music.player.ui.markNextNavigationFromNowPlaying
 import yos.music.player.ui.toUI
+import yos.music.player.ui.widgets.MainPlayerLyricStrip
+import yos.music.player.ui.widgets.MusicLyricsPanel
+import yos.music.player.ui.widgets.LyricsProviderContent
 import yos.music.player.ui.widgets.YosLyricView
 import yos.music.player.ui.widgets.effects.YosFloatingLight
 import yos.music.player.ui.widgets.audio.MusicQualityIndicator
@@ -436,6 +439,7 @@ fun NowPlaying(
             }
 
             // 歌词
+            if (nowPageLambda() == Lyric) {
             YosWrapper {
 
                 Column(
@@ -464,6 +468,8 @@ fun NowPlaying(
                         mediaViewModel = mediaViewModel
                     )
                 }
+            }
+
             }
 
             // 这是小把手
@@ -508,7 +514,7 @@ fun NowPlaying(
                                         .fillMaxSize()
                                 ) {
                                     YosWrapper {
-                                        Column(Modifier.fillMaxHeight(0.595f)) {
+                                        Column(Modifier.fillMaxHeight(0.56f)) {
                                             val isVisible = nowPageLambda() == Album
 
                                             Album(
@@ -1641,6 +1647,7 @@ private fun SmallMusicListItem(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Lyric(
     lrcEntries: () -> List<List<Pair<Float, String>>>,
@@ -1655,129 +1662,27 @@ private fun Lyric(
     onBackClick: () -> Unit
 ) = YosWrapper {
 
-    val context = LocalContext.current
-
-    Column(
-        Modifier
-            .fillMaxSize()
-    ) {
-        YosWrapper {
-            Spacer(modifier = Modifier.statusBarsHeight(110.dp))
-
-            val downloadBusy = MediaViewModelObject.lyricsDownloading.value
-            val downloadStatus = MediaViewModelObject.lyricsDownloadStatus.value
-            androidx.compose.material3.TextButton(
-                onClick = { MediaController.downloadLyrics?.invoke() },
-                enabled = !downloadBusy,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            ) {
-                Text(
-                    text = downloadStatus.ifBlank { "Download lyrics for offline use" },
-                    color = Color.White.copy(alpha = .7f),
-                    fontSize = 12.sp
-                )
-            }
-
-            YosLyricView(
-                //mediaViewModel = mediaViewModel,
-                lrcEntriesLambda = lrcEntries,
-                lineEndTimesLambda = lineEndTimes,
-                lineTransliterationsLambda = lineTransliterations,
-                lineSubtitlesLambda = lineSubtitles,
-                isTtmlLyricsLambda = isTtmlLyrics,
-                liveTimeLambda = {
-                    (mediaControl?.currentPosition ?: 0).toInt()
-                },
-                mediaEvent = object : YosMediaEvent {
-                    override fun onSeek(position: Int) {
-                        mediaControl?.seekTo(position.toLong())
-                    }
-                },
-                translationLambda = translationLambda,
-                blurLambda = {
-                    SettingsLibrary.LyricBlurEffect
-                },
-                uiConfig = YosUIConfig(
-                    noLrcText = stringResource(id = R.string.tip_no_lyrics)
-                ),
-                weightLambda = weightLambda,
-                modifier = Modifier.drawWithCache {
-                    onDrawWithContent {
-                        val overlayPaint = Paint().apply {
-                            blendMode = BlendMode.Plus
-                        }
-                        val rect = Rect(0f, 0f, size.width, size.height)
-                        val canvas = this.drawContext.canvas
-
-                        canvas.saveLayer(rect, overlayPaint)
-
-                        val colors = if (weightLambda()) {
-                            listOf(
-                                Color.Transparent,
-                                Color(0x59000000),
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color(0x59000000),
-                                Color(0x21000000),
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent
-                            )
-                        } else {
-                            listOf(
-                                Color.Transparent,
-                                Color(0x59000000),
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                /*Color(0xD9000000),
-                                Color(0xA6000000),
-                                Color(0x73000000),
-                                Color(0x59000000),
-                                Color(0x3F000000),
-                                Color(0x21000000),
-                                Color(0x0C000000),*/
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black
-                            )
-                        }
-
-                        drawContent()
-
-                        drawRect(
-                            brush = Brush.verticalGradient(colors),
-                            blendMode = BlendMode.DstIn
-                        )
-
-                        canvas.restore()
-                    }
-                },
-                onBackClick = onBackClick
-            )
+    var providerOpen by remember { mutableStateOf(false) }
+    if (providerOpen) {
+        YosBottomSheetDialog(onDismissRequest = { providerOpen = false }) {
+            LyricsProviderContent { providerOpen = false }
         }
     }
+    Column(Modifier.fillMaxSize()) {
+        Spacer(modifier = Modifier.statusBarsHeight(110.dp))
+        androidx.compose.material3.TextButton(onClick = { providerOpen = true }, modifier = Modifier.padding(horizontal = 24.dp)) {
+            Column {
+                Text("Lyrics · " + yos.music.player.code.lyrics.LyricsProvider.fromId(SettingsLibrary.LyricsProvider).title,
+                    color = Color.White.copy(alpha = .8f), fontSize = 13.sp)
+                Text(MediaViewModelObject.lyricsDownloadStatus.value.ifBlank { "Choose provider / download for offline" },
+                    color = Color.White.copy(alpha = .5f), fontSize = 11.sp)
+            }
+        }
+        MusicLyricsPanel(Modifier.fillMaxWidth().fillMaxHeight(if (weightLambda()) .56f else 1f),
+            showTranslation = translationLambda(), onSeek = { onBackClick(); mediaControl?.seekTo(it) })
+    }
 }
+
 
 @Composable
 private fun ActionButtonsRow(
@@ -1989,7 +1894,10 @@ private fun NowPlayingOverflowSheet(
                         navigationDirection.intValue = SheetNavigationForward
                         screen = OverflowScreen.SleepTimer
                     },
+                    onPickLyrics = { screen = OverflowScreen.Lyrics },
                 )
+
+                OverflowScreen.Lyrics -> LyricsProviderContent(onDone = onDismiss)
 
                 OverflowScreen.Playlist -> PlayListPickerContent(
                     songToAdd = song,
@@ -2012,7 +1920,7 @@ private fun NowPlayingOverflowSheet(
     }
 }
 
-private enum class OverflowScreen { Menu, Playlist, SleepTimer }
+private enum class OverflowScreen { Menu, Playlist, SleepTimer, Lyrics }
 
 private enum class OverflowLibraryTarget(val route: String)
 {
@@ -2028,6 +1936,7 @@ private fun OverflowMenuBody(
     onDismiss: () -> Unit,
     onPickPlaylist: () -> Unit,
     onPickSleepTimer: () -> Unit,
+    onPickLyrics: () -> Unit,
 ) {
     val addToPlaylistLabel = stringResource(R.string.now_playing_overflow_add_to_playlist)
     val sleepTimerLabel = stringResource(R.string.now_playing_overflow_sleep_timer)
@@ -2039,9 +1948,11 @@ private fun OverflowMenuBody(
 
     val items = remember(
         addToPlaylistLabel, sleepTimerLabel, sleepTimerActive, accent,
-        onPickPlaylist, onPickSleepTimer,
+        onPickPlaylist, onPickSleepTimer, onPickLyrics,
     ) {
         listOf(
+            ActionItem(iconRes = R.drawable.ic_nowplaying_lyrics, label = "Lyrics provider",
+                onClick = onPickLyrics),
             ActionItem(
                 iconRes = R.drawable.ic_action_add,
                 label = addToPlaylistLabel,
@@ -2447,6 +2358,7 @@ private fun PlayerControl(
                 .padding(bottom = 15.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            if (nowPage() == Album) MainPlayerLyricStrip(onOpenLyrics = onLyrics)
             YosWrapper {
                 // 启动作用
                 YosWrapper {
@@ -2522,7 +2434,7 @@ private fun PlayerControl(
                         track = {
                             Track(
                                 sliderPositions = SliderPositions(
-                                    initialActiveRange = 0f..(sliderPosition.floatValue / playingDuration.longValue)
+                                    initialActiveRange = 0f..(sliderPosition.floatValue / playingDuration.longValue.coerceAtLeast(1L))
                                 ), height = 7.dp
                             )
                         }

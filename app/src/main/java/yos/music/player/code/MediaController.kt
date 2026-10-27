@@ -969,7 +969,8 @@ class YosPlaybackService : MediaSessionService() {
     private var lyricsUri: String? = null
 
     private fun requestLyrics(song: YosMediaItem, localPath: String?, refresh: Boolean = false) {
-        val identity = song.uri?.toString() ?: return
+        val provider = yos.music.player.code.lyrics.LyricsProvider.fromId(SettingsLibrary.LyricsProvider)
+        val identity = (song.uri?.toString() ?: return) + "|" + provider.id
         if (!refresh && identity == lyricsUri) return
         lyricsUri = identity
         lyricsJob?.cancel()
@@ -981,17 +982,21 @@ class YosPlaybackService : MediaSessionService() {
             try {
                 val local = withContext(Dispatchers.IO) { loadParsedLyrics(localPath) }
                 ensureActive()
-                if (local.entries.isNotEmpty()) {
+                if (local.entries.isNotEmpty() && provider in listOf(yos.music.player.code.lyrics.LyricsProvider.Auto, yos.music.player.code.lyrics.LyricsProvider.Local)) {
                     applyParsedLyrics(local)
-                    if (yos.music.player.code.lyrics.OnlineLyrics.wordTimed(local)) {
-                        MediaViewModelObject.lyricsDownloadStatus.value = "Local word lyrics • available offline"
+                    if (provider == yos.music.player.code.lyrics.LyricsProvider.Local || yos.music.player.code.lyrics.OnlineLyrics.wordTimed(local)) {
+                        MediaViewModelObject.lyricsDownloadStatus.value = "Local lyrics • available offline"
                         return@launch
                     }
                 }
-                val result = LyricsDownloads.load(this@YosPlaybackService, song, refresh)
+                if (provider == yos.music.player.code.lyrics.LyricsProvider.Local) {
+                    MediaViewModelObject.lyricsDownloadStatus.value = "No local lyrics for this song"
+                    return@launch
+                }
+                val result = LyricsDownloads.load(this@YosPlaybackService, song, refresh, provider)
                 ensureActive()
                 if (lyricsUri != identity) return@launch
-                if (local.entries.isNotEmpty() && (result == null || !yos.music.player.code.lyrics.OnlineLyrics.wordTimed(result.parsed))) {
+                if (provider == yos.music.player.code.lyrics.LyricsProvider.Auto && local.entries.isNotEmpty() && (result == null || !yos.music.player.code.lyrics.OnlineLyrics.wordTimed(result.parsed))) {
                     MediaViewModelObject.lyricsDownloadStatus.value = "Local lyrics • available offline"
                 } else if (result == null) {
                     MediaViewModelObject.lyricsDownloadStatus.value = "No match. Download / retry"
