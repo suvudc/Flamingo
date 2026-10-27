@@ -66,7 +66,7 @@ fun HomeNav(
             userScrollEnabled = false
         ) { page ->
             when (page) {
-                0 -> OctaveStyleHome(navController)
+                0 -> PixelStyleHome(navController)
                 1 -> OctaveStyleHome(navController, newMusic = true)
                 2 -> Library(navController)
             }
