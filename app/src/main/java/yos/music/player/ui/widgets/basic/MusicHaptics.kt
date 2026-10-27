@@ -62,7 +62,7 @@ fun HapticIconButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled
     colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
     interactionSource: MutableInteractionSource? = null, content: @Composable () -> Unit) =
     IconButton(onClick = rememberHapticAction(onClick), modifier = modifier, enabled = enabled,
-        colors = colors, interactionSource = interactionSource, content = content)
+        colors = colors, interactionSource = interactionSource ?: remember { MutableInteractionSource() }, content = content)
 
 @Composable
 fun HapticTextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
