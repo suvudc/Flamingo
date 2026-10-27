@@ -11,11 +11,14 @@ apk=$(find app/build/outputs/apk/optimized -name '*.apk' -print -quit)
 adb install -r -g "$apk"
 python scripts/android-runtime-fixture.py
 adb shell mkdir -p /sdcard/Music
-adb push runtime-diagnostics/MusicRuntime.wav /sdcard/Music/MusicRuntime.wav
+adb push runtime-diagnostics/MusicRuntime.mp3 /sdcard/Music/MusicRuntime.mp3
 adb push runtime-diagnostics/MusicRuntime.ttml /sdcard/Music/MusicRuntime.ttml
 adb shell appops set yos.music.player.music MANAGE_EXTERNAL_STORAGE allow
-adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Music/MusicRuntime.wav
-sleep 2
+adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Music/MusicRuntime.mp3
+# Wait for indexing and mark this synthetic file as music before Music's first scan.
+sleep 4
+adb shell content update --uri content://media/external/audio/media --bind is_music:i:1 --where "title='MusicRuntime'" || true
+adb shell content query --uri content://media/external/audio/media --projection _id:title:is_music > runtime-diagnostics/media-store.txt
 adb shell cmd uimode night yes
 adb logcat -c
 adb shell am force-stop yos.music.player.music
@@ -112,6 +115,8 @@ assert any('Offline lyrics test' in n.get('content-desc', '') for n in root.iter
 print('Local timed lyrics rendered in the full lyrics view')
 PY_WORDS
 adb exec-out screencap -p > runtime-diagnostics/screen-lyrics.png
+# Lyrics must stop above the slider/control region rather than drawing behind it.
+# Keep XML and a short recording for visual inspection at normal animation speed.
 adb shell screenrecord --time-limit 4 /sdcard/music-lyrics.mp4
 adb pull /sdcard/music-lyrics.mp4 runtime-diagnostics/lyrics-animation.mp4
 adb shell dumpsys activity activities | grep -Eq '(mResumedActivity|topResumedActivity|ResumedActivity).*yos[.]music[.]player[.]music/.*MainActivity'

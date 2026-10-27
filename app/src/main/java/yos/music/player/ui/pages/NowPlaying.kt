@@ -47,6 +47,10 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -312,6 +316,12 @@ fun NowPlaying(
         color = Color.Transparent
     ) {
         val context = LocalContext.current
+        // Read absolute platform insets: the player is an edge-to-edge overlay, and
+        // inherited/consumed Accompanist padding can otherwise put its handle in the cutout.
+        val playerDensity = LocalDensity.current
+        val playerStatusTop = with(playerDensity) {
+            maxOf(WindowInsets.statusBars.getTop(this), WindowInsets.displayCutout.getTop(this)).toDp()
+        }
 
         val lrcEntries: MutableState<List<List<Pair<Float, String>>>> =
             MediaViewModelObject.lrcEntries
@@ -478,7 +488,7 @@ fun NowPlaying(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .statusBarsPadding()
+                            .padding(top = playerStatusTop)
                             .padding(top = 20.dp).zIndex(3f), contentAlignment = Alignment.Center
                     ) {
                         Box(
@@ -502,8 +512,8 @@ fun NowPlaying(
                         targetState = nowPageLambda(),
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
-                            .padding(top = 22.dp)
+                            .padding(top = playerStatusTop)
+                            .padding(top = 44.dp)
                     ) {
                         //println("nowPage: ${nowPageLambda()}")
                         //println("nowPageIt: $it")
@@ -634,7 +644,7 @@ fun NowPlaying(
                     exit = fadeOut(tween(AnimDurationMillis)),
                     modifier = Modifier
                         .fillMaxSize()
-                        .statusBarsPadding()
+                        .padding(top = playerStatusTop)
                         .padding(top = 114.dp)
                 ) {
                     Column(
@@ -661,7 +671,7 @@ fun NowPlaying(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .statusBarsPadding(), verticalArrangement = Arrangement.Bottom
+                        .padding(top = playerStatusTop), verticalArrangement = Arrangement.Bottom
                 ) {
                     Box(
                         Modifier
@@ -1668,18 +1678,27 @@ private fun Lyric(
             LyricsProviderContent { providerOpen = false }
         }
     }
-    Column(Modifier.fillMaxSize()) {
-        Spacer(modifier = Modifier.statusBarsHeight(110.dp))
-        androidx.compose.material3.TextButton(onClick = { providerOpen = true }, modifier = Modifier.padding(horizontal = 24.dp)) {
-            Column {
-                Text("Lyrics · " + yos.music.player.code.lyrics.LyricsProvider.fromId(SettingsLibrary.LyricsProvider).title,
-                    color = Color.White.copy(alpha = .8f), fontSize = 13.sp)
-                Text(MediaViewModelObject.lyricsDownloadStatus.value.ifBlank { "Choose provider / download for offline" },
-                    color = Color.White.copy(alpha = .5f), fontSize = 11.sp)
+    val density = LocalDensity.current
+    val statusTop = with(density) {
+        maxOf(WindowInsets.statusBars.getTop(this), WindowInsets.displayCutout.getTop(this)).toDp()
+    }
+    BoxWithConstraints(Modifier.fillMaxSize().padding(top = statusTop)) {
+        // Match the control host's 43.7% height, plus its translation action.
+        // Reserve the space BEFORE measuring the header and list, rather than
+        // taking 56% of the space remaining after the header.
+        val controlsHeight = if (weightLambda()) maxHeight * .437f + 38.dp else 0.dp
+        Column(Modifier.fillMaxSize().padding(top = 110.dp, bottom = controlsHeight).clipToBounds()) {
+            androidx.compose.material3.TextButton(onClick = { providerOpen = true }, modifier = Modifier.padding(horizontal = 24.dp)) {
+                Column {
+                    Text("Lyrics · " + yos.music.player.code.lyrics.LyricsProvider.fromId(SettingsLibrary.LyricsProvider).title,
+                        color = Color.White.copy(alpha = .8f), fontSize = 13.sp)
+                    Text(MediaViewModelObject.lyricsDownloadStatus.value.ifBlank { "Choose provider / download for offline" },
+                        color = Color.White.copy(alpha = .5f), fontSize = 11.sp)
+                }
             }
+            MusicLyricsPanel(Modifier.fillMaxWidth().weight(1f).clipToBounds(),
+                showTranslation = translationLambda(), onSeek = { onBackClick(); mediaControl?.seekTo(it) })
         }
-        MusicLyricsPanel(Modifier.fillMaxWidth().fillMaxHeight(if (weightLambda()) .56f else 1f),
-            showTranslation = translationLambda(), onSeek = { onBackClick(); mediaControl?.seekTo(it) })
     }
 }
 
@@ -2358,7 +2377,8 @@ private fun PlayerControl(
                 .padding(bottom = 15.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (nowPage() == Album) MainPlayerLyricStrip(onOpenLyrics = onLyrics)
+            if (nowPage() == Album) MainPlayerLyricStrip(
+                modifier = Modifier.padding(horizontal = 7.dp), onOpenLyrics = onLyrics)
             YosWrapper {
                 // 启动作用
                 YosWrapper {

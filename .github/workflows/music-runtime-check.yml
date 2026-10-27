@@ -31,6 +31,8 @@ jobs:
             keytool -genkeypair -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
           fi
           bash gradlew :app:assembleOptimized -PmusicSmokeAbi=x86_64 --stacktrace
+      - name: Install audio fixture encoder
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
       - name: Enable emulator acceleration
         run: sudo chmod 666 /dev/kvm
       - name: Launch Music and inspect Android runtime

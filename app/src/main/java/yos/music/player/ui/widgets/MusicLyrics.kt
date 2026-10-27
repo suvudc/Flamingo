@@ -144,15 +144,15 @@ private fun SweptLine(line: LyricLine, clock: State<Float>, active: Boolean,
 }
 
 @Composable
-fun MainPlayerLyricStrip(onOpenLyrics: () -> Unit) {
+fun MainPlayerLyricStrip(modifier: Modifier = Modifier, onOpenLyrics: () -> Unit) {
     val lines = rememberTimeline()
     val clock = rememberLyricsClock()
     val index by remember(lines, clock) { derivedStateOf { activeLyricIndex(lines, clock.value) } }
     val line = lines.getOrNull(index)
-    Row(Modifier.fillMaxWidth().height(34.dp).semantics { contentDescription = "Open lyrics" }.clickable(
+    Row(modifier.fillMaxWidth().height(34.dp).clipToBounds().semantics { contentDescription = "Open lyrics" }.clickable(
         interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onOpenLyrics),
         verticalAlignment = Alignment.CenterVertically) {
-        AnimatedContent(targetState = index, label = "Current lyric", modifier = Modifier.weight(1f),
+        AnimatedContent(targetState = index, label = "Current lyric", modifier = Modifier.weight(1f).clipToBounds(),
             transitionSpec = { (fadeIn(tween(340)) + slideInVertically(tween(340, easing = lyricEasing)) { it / 3 }) togetherWith
                 (fadeOut(tween(260)) + slideOutVertically(tween(340, easing = lyricEasing)) { -it / 3 }) }) { shown ->
             val shownLine = lines.getOrNull(shown)
@@ -187,7 +187,7 @@ fun MusicLyricsPanel(modifier: Modifier = Modifier, showTranslation: Boolean = t
     if (lines.isEmpty()) Box(modifier, contentAlignment = Alignment.Center) {
         Text(if (MediaViewModelObject.lyricsDownloading.value) "Finding lyrics…" else "No lyrics yet. Choose a provider above.",
             color = Color.White.copy(alpha = .6f), modifier = Modifier.padding(24.dp))
-    } else LazyColumn(modifier.onSizeChanged { viewport = it.height }, state = list,
+    } else LazyColumn(modifier.clipToBounds().onSizeChanged { viewport = it.height }, state = list,
         contentPadding = PaddingValues(top = 42.dp, bottom = 180.dp, start = 26.dp, end = 26.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp)) {
         itemsIndexed(lines, key = { i, line -> "$i:${line.start}:${line.text.hashCode()}" }) { i, line ->

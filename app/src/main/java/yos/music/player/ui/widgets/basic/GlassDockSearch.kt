@@ -11,6 +11,12 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
+import yos.music.player.R
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -57,6 +63,7 @@ internal fun GlassDockSearch(onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     val dark = isFlamingoInDarkMode()
+    val context = LocalContext.current
     Dialog(onDismissRequest = { if (!preparing) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false,
         decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize(), color = if (dark) Color.Black else Color.White,
@@ -72,7 +79,17 @@ internal fun GlassDockSearch(onDismiss: () -> Unit) {
                 playbackError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
                 LazyColumn(Modifier.weight(1f)) {
                     items(results, key = { it.uri.toString() }) { song ->
-                        ListItem(headlineContent = { Text(song.title ?: defaultTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        ListItem(leadingContent = {
+                            val artwork = remember(context, song.thumb) {
+                                ImageRequest.Builder(context).data(song.thumb).size(128)
+                                    .placeholder(R.drawable.placeholder_music_default_artwork)
+                                    .error(R.drawable.placeholder_music_default_artwork)
+                                    .fallback(R.drawable.placeholder_music_default_artwork).build()
+                            }
+                            AsyncImage(artwork, contentDescription = "Album cover for ${song.title ?: defaultTitle}",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(7.dp)))
+                        }, headlineContent = { Text(song.title ?: defaultTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             supportingContent = { Text(song.artistsName ?: defaultArtistsName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             modifier = Modifier.clickable(enabled = !preparing && !searching) {
                                 if (!preparing) {
