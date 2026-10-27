@@ -78,17 +78,17 @@ internal fun keepScrollInList(listState: LazyListState) = object : NestedScrollC
 }
 // Keep this local to the lyric viewport: fading the player would wash out the
 // seek bar and translation button too. Cache the masks until its size changes.
-internal val LYRICS_BOTTOM_REVEAL = 96.dp
+internal val LYRICS_BOTTOM_REVEAL = 56.dp
 internal fun Modifier.fadingEdges(): Modifier = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
     .drawWithCache {
         val topFade = 28.dp.toPx().coerceAtMost(size.height / 2f)
         val bottomFade = LYRICS_BOTTOM_REVEAL.toPx().coerceAtMost(size.height * .42f)
         val topMask = Brush.verticalGradient(listOf(Color.Transparent, Color.Black), 0f, topFade)
-        // Approximate smoothstep with stops so the line arrives gently rather
-        // than reaching full opacity at an obvious linear-gradient boundary.
+        // Keep the upcoming words visible until the final part of the panel.
+        // The long build-30 ramp dimmed already-muted words too early.
         val bottomMask = Brush.verticalGradient(
-            0f to Color.Black, .25f to Color.Black.copy(alpha = .844f),
-            .5f to Color.Black.copy(alpha = .5f), .75f to Color.Black.copy(alpha = .156f),
+            0f to Color.Black, .25f to Color.Black.copy(alpha = .96f),
+            .5f to Color.Black.copy(alpha = .75f), .75f to Color.Black.copy(alpha = .4f),
             1f to Color.Transparent,
             startY = size.height - bottomFade, endY = size.height,
         )
@@ -107,7 +107,9 @@ internal fun rememberLyricsEdgeBlurEffects(): List<RenderEffect?> {
         List(25) { step ->
             if (step == 0 || !renderEffectBlurSupported) null
             else {
-                val radius = with(density) { (step * .25f).dp.toPx() }
+                // A faint feather at the edge, not a second strong blur on
+                // top of the renderer's existing line treatment.
+                val radius = with(density) { (step * .05f).dp.toPx() }
                 android.graphics.RenderEffect.createBlurEffect(radius, radius,
                     android.graphics.Shader.TileMode.DECAL).asComposeRenderEffect()
             }

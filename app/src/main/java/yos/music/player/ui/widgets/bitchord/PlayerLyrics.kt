@@ -1748,6 +1748,9 @@ internal fun LyricsPanel(
             val blur by animateDpAsState(
                 targetValue = when {
                     !isSynced || reduceDynamicBlur || !lyricsBlur || browsing || isActive -> 0.dp
+                    // The reference keeps future words faint but legible.
+                    // Save the stronger distance blur for rows already sung.
+                    offset > 0 -> .35.dp
                     else -> LINE_FALLOFF_BLUR[step]
                 },
                 animationSpec = tween(LYRIC_SETTLE_MS, easing = LYRIC_EASING),
@@ -1953,8 +1956,11 @@ internal fun LyricsPanel(
                         val item = info.visibleItemsInfo.firstOrNull { it.index == index }
                         val revealHeight = bottomRevealPx.coerceAtMost(info.viewportSize.height * .42f)
                         val depth = if (item == null || revealHeight <= 0f || browsing || isActive) 0f else {
-                            val middle = item.offset + translationY + item.size * .5f
-                            ((middle - (info.viewportEndOffset - revealHeight)) / revealHeight)
+                            // Measure from the top of the row. A wrapped line
+                            // may be tall: its lower half entering the fade
+                            // must not blur the still-visible upper words.
+                            val top = item.offset + translationY
+                            ((top - (info.viewportEndOffset - revealHeight)) / revealHeight)
                                 .coerceIn(0f, 1f)
                         }
                         val easedDepth = depth * depth * (3f - 2f * depth)
