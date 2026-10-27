@@ -220,8 +220,7 @@ class MainActivity : BaseActivity() {
             YosMusicTheme {
                 val artworkMotion = remember { PlayerArtworkMotion() }
                 val appGlassHaze = remember { HazeState() }
-                CompositionLocalProvider(LocalPlayerArtworkMotion provides artworkMotion,
-                    yos.music.player.ui.widgets.basic.LocalMusicGlassHaze provides appGlassHaze) {
+                CompositionLocalProvider(LocalPlayerArtworkMotion provides artworkMotion) {
                 ProvideWindowInsets {
                     val context = LocalContext.current
                     val density = LocalDensity.current

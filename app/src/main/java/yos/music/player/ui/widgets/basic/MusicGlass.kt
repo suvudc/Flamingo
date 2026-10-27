@@ -19,11 +19,9 @@ import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.*
 import yos.music.player.ui.theme.isFlamingoInDarkMode
 
-val LocalMusicGlassHaze = staticCompositionLocalOf<HazeState?> { null }
-
 /** The refracted backdrop is a separate layer, so labels/icons never get bent or blurred. */
 @Composable
-fun MusicGlass(modifier: Modifier = Modifier, haze: HazeState? = LocalMusicGlassHaze.current,
+fun MusicGlass(modifier: Modifier = Modifier, haze: HazeState? = null,
     content: @Composable BoxScope.() -> Unit) {
     val dark = isFlamingoInDarkMode()
     val base = if (dark) Color(0xFF18181B) else Color(0xFFF3F3F7)
@@ -46,7 +44,9 @@ fun MusicGlass(modifier: Modifier = Modifier, haze: HazeState? = LocalMusicGlass
 @Composable
 fun MusicGlassButton(icon: ImageVector, description: String, modifier: Modifier = Modifier.size(44.dp),
     onClick: () -> Unit) {
-    MusicGlass(modifier) {
+    // This header can be inside the page's recorded backdrop. Sampling that same
+    // backdrop here would make its RenderNode graph reference itself (native crash).
+    MusicGlass(modifier, haze = null) {
         IconButton(onClick = onClick, modifier = Modifier.fillMaxSize()) {
             Icon(icon, description, tint = if (isFlamingoInDarkMode()) Color.White else Color(0xFF202024),
                 modifier = Modifier.size(23.dp))

@@ -36,3 +36,16 @@ Validation: optimized Android build and JVM suite via GitHub Actions. Added pure
 fit-geometry tests for square, portrait, landscape, resize and unavailable video
 sizes. Shader appearance, native video capture, gestures and frame pacing need
 verification on the user's Pixel 7; no device/emulator rendering is available here.
+
+## Build 23 startup correction and runtime verification
+
+Removed implicit access to the page's HazeState from descendants. In Haze
+0.9.0-alpha06 the source records its descendants into a GraphicsLayer, and a
+hazeChild draws that same layer. The new in-page header buttons were both
+recorded by the source and drawing from it, creating a self-referential native
+RenderNode graph. Header/player buttons now use the reflective shader material
+without a page backdrop; the dock explicitly receives the page's HazeState as a
+sibling outside the source and retains its actual backdrop blur. A runtime
+workflow builds the optimized x86_64 variant and launches/navigates it on an
+Android emulator, collecting logcat, activity state, screenshot and R8 mapping.
+Phone APK ABI defaults and its signing identity are unchanged.
