@@ -51,6 +51,7 @@ jobs:
           name: Music-runtime-diagnostics
           path: |
             runtime-diagnostics/
+            runtime-test-results.txt
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
           if-no-files-found: ignore

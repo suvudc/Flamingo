@@ -2,6 +2,7 @@ package yos.music.player.ui
 
 import android.graphics.Bitmap
 import android.net.Uri
+import android.view.KeyEvent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -15,7 +16,6 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.rememberNavController
-import androidx.test.espresso.Espresso.pressBack
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -161,8 +161,12 @@ class PlayerInteractionTest {
                 click(Offset(3.dp.toPx(), center.y))
             }
             compose.onNodeWithText("Sleep Timer").assertIsDisplayed()
-            pressBack()
+            // The sheet uses a separate panel window; Espresso's root picker
+            // can select that transient window before it gains focus. Send the
+            // real Android Back key and still assert that the menu closes.
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             compose.waitForIdle()
+            compose.onNodeWithText("Sleep Timer").assertDoesNotExist()
         }
     }
 
@@ -171,6 +175,25 @@ class PlayerInteractionTest {
         player { minimizes++ }
         compose.onNodeWithContentDescription("Minimize player").performTouchInput { click(center) }
         compose.runOnIdle { assertEquals(1, minimizes) }
+    }
+
+    @Test fun fullScreenLyricsKeepTheLowerViewportScrollableAfterControlsHide() {
+        player()
+        compose.onNodeWithContentDescription("Open lyrics").performTouchInput { click(center) }
+        compose.mainClock.advanceTimeBy(3_000)
+        compose.waitForIdle()
+        val list = compose.onNode(hasScrollAction())
+        val panel = list.fetchSemanticsNode().boundsInRoot
+        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        assertTrue("Hidden controls must leave the whole lower viewport to lyrics",
+            root.bottom - panel.bottom < 8f * compose.density.density)
+        val before = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+        list.performTouchInput {
+            swipe(Offset(center.x, height * .88f), Offset(center.x, height * .57f), 500)
+        }
+        val after = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+        assertTrue("Full-screen lyrics must scroll below the midpoint", after > before)
+        screenshot("full-screen-lyrics-lower-scroll")
     }
 
     private fun screenshot(name: String) {
