@@ -769,9 +769,9 @@ fun NowPlaying(
 
                                     PlayerControl(
                                         onSeekBarTopChanged = { top ->
-                                            if (nowPageLambda() == Lyric && showControl.value) {
-                                                lyricSeekBarTop.floatValue = top
-                                            }
+                                            // Cache even on the album page: switching pages does not
+                                            // necessarily place this unchanged slider again.
+                                            lyricSeekBarTop.floatValue = top
                                         },
                                         isPlayingLambda = isPlayingStatusLambda,
                                         isPlayingOnChanged = isPlayingOnChanged,

@@ -78,7 +78,7 @@ internal fun keepScrollInList(listState: LazyListState) = object : NestedScrollC
 }
 // Keep this local to the lyric viewport: fading the player would wash out the
 // seek bar and translation button too. Cache the masks until its size changes.
-internal val LYRICS_BOTTOM_REVEAL = 72.dp
+internal val LYRICS_BOTTOM_REVEAL = 56.dp
 internal fun Modifier.fadingEdges(): Modifier = graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
     .drawWithCache {
         val topFade = 28.dp.toPx().coerceAtMost(size.height / 2f)
@@ -109,7 +109,7 @@ internal fun rememberLyricsEdgeBlurEffects(): List<RenderEffect?> {
             else {
                 // A faint feather at the edge, not a second strong blur on
                 // top of the renderer's existing line treatment.
-                val radius = with(density) { (step * .05f).dp.toPx() }
+                val radius = with(density) { (step * .125f).dp.toPx() }
                 android.graphics.RenderEffect.createBlurEffect(radius, radius,
                     android.graphics.Shader.TileMode.DECAL).asComposeRenderEffect()
             }
