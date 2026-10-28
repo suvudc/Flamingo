@@ -1,4 +1,5 @@
 name: Music optimized APK
+run-name: Music build 33 — lyrics viewport and scrolling
 
 on:
   push:
