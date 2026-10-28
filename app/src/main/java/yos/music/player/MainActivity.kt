@@ -693,6 +693,10 @@ class MainActivity : BaseActivity() {
                                                     minimizePlayer(velocity)
                                                 } else settlePlayer(velocity)
                                             })
+                                    } else if (nowPageNowPlaying.value == yos.music.player.ui.pages.NowPlayingPage.Lyric) {
+                                        // The lyric list owns the entire viewport, including its
+                                        // lower padding. Only the handle may drag this sheet.
+                                        Modifier
                                     } else Modifier.draggable(
                                         enabled = !artworkMotion.closing,
                                         orientation = Orientation.Vertical,
@@ -719,7 +723,16 @@ class MainActivity : BaseActivity() {
                                     isPlayingOnChanged = { isPlaying.value = it },
                                     nowPageLambda = { nowPageNowPlaying.value },
                                     showNowPlaying = { showNowPlaying.value },
-                                    showMiniPlayer = { yosBottomSheetConfig.showMenu }
+                                    showMiniPlayer = { yosBottomSheetConfig.showMenu },
+                                    handleGestureModifier = if (nowPageNowPlaying.value == yos.music.player.ui.pages.NowPlayingPage.Lyric) {
+                                        Modifier.draggable(
+                                            enabled = !artworkMotion.closing,
+                                            orientation = Orientation.Vertical,
+                                            reverseDirection = true,
+                                            state = dragState,
+                                            onDragStopped = { settlePlayer(it) }
+                                        )
+                                    } else Modifier
                                 ) { nowPageNowPlaying.value = it }
                             }
                         }

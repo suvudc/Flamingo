@@ -1,5 +1,5 @@
 name: Music optimized APK
-run-name: Music build 33 — lyrics viewport and scrolling
+run-name: Music build 34 — compact spacing and reliable touch
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build:
@@ -28,15 +29,29 @@ jobs:
         with:
           path: debug.keystore
           key: music-test-signing-v1
-      - name: Create debug signing key
+      - name: Require the existing Music update signing key
         run: |
-          if [ ! -f debug.keystore ]; then
-            keytool -genkeypair -keystore debug.keystore -storepass android \
-              -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
-              -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
+          test -f debug.keystore || { echo 'Original Music signing cache is missing'; exit 1; }
       - name: Build optimized APK and run unit tests
         run: bash gradlew :app:assembleOptimized :app:testOptimizedUnitTest --stacktrace
+      - name: Verify upgrade signature against build 32
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 40545274298 --repo "$GITHUB_REPOSITORY" -n Music-apk -D "$RUNNER_TEMP/music-32"
+          old_apk=$(find "$RUNNER_TEMP/music-32" -name '*.apk' -print -quit)
+          new_apk=$(find app/build/outputs/apk/optimized -name '*.apk' -print -quit)
+          signer="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$signer" verify --print-certs "$old_apk" > "$RUNNER_TEMP/music-32-cert.txt"
+          "$signer" verify --print-certs "$new_apk" > app/build/signing-verification.txt
+          old_cert=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/music-32-cert.txt")
+          new_cert=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' app/build/signing-verification.txt)
+          test -n "$old_cert" && test "$old_cert" = "$new_cert"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$new_apk" > app/build/apk-manifest.txt
+          grep -q "package: name='yos.music.player.music' versionCode='34'" app/build/apk-manifest.txt
+          sha256sum "$new_apk" > app/build/apk-sha256.txt
+          echo 'Verified: build 34 can update build 32 with the same signing identity.'
       - name: Upload optimized APK
         uses: actions/upload-artifact@v4
         with:
@@ -49,4 +64,15 @@ jobs:
         with:
           name: test-reports
           path: app/build/reports/tests/
+          if-no-files-found: ignore
+      - name: Upload APK verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Music-apk-verification
+          path: |
+            app/build/signing-verification.txt
+            app/build/apk-manifest.txt
+            app/build/apk-sha256.txt
+            app/build/test-results/
           if-no-files-found: ignore

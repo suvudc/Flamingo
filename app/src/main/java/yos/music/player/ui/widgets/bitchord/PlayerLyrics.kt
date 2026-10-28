@@ -1484,7 +1484,7 @@ internal fun LyricsPanel(
         // A pick has the whole panel to itself: the controls that a tap down
         // there would pull back in are the player's transport, and it must not
         // surface under somebody who is choosing lines.
-        if (!picking && !listState.isScrollInProgress) {
+        if (!picking) {
             onRevealControls()
         }
     }
@@ -1675,10 +1675,7 @@ internal fun LyricsPanel(
             
             .nestedScroll(controlsOnScroll)
             .nestedScroll(keepScroll)
-            // Browsing leaves taps to each lyric row's seek action throughout
-            // the list — and picking leaves them nothing at all: the gesture
-            // below takes taps at the initial pass, so while a pick is open it
-            // would swallow every choice before the row ever saw it.
+            // Observe unhandled taps; never consume the list's down or drag.
             .revealLyricsControlsOnTap(!controlsOpen && !picking, onBottomHalfTap)
             .fadingEdges(),
         // Each row carries GLOW_ROOM of its own inset for the halo, so the

@@ -1,4 +1,5 @@
 name: Music Android runtime check
+run-name: Music build 34 — scrolling and touch regression checks
 on:
   push:
     branches: [fix/pixel-media-artwork]
@@ -25,17 +26,15 @@ jobs:
         with:
           path: debug.keystore
           key: music-test-signing-v1
-      - name: Build optimized emulator APK
+      - name: Build emulator app and interaction tests
         run: |
           if [ ! -f debug.keystore ]; then
             keytool -genkeypair -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
           fi
-          bash gradlew :app:assembleOptimized -PmusicSmokeAbi=x86_64 --stacktrace
-      - name: Install audio fixture encoder
-        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+          bash gradlew :app:assembleDebug :app:assembleDebugAndroidTest -PmusicSmokeAbi=x86_64 --stacktrace
       - name: Enable emulator acceleration
         run: sudo chmod 666 /dev/kvm
-      - name: Launch Music and inspect Android runtime
+      - name: Exercise production player and lyric gestures
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -44,7 +43,7 @@ jobs:
           profile: pixel_7
           disable-animations: false
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot -camera-back none -camera-front none
-          script: bash scripts/android-runtime-smoke.sh
+          script: bash scripts/android-interaction-tests.sh
       - name: Upload runtime diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -52,5 +51,6 @@ jobs:
           name: Music-runtime-diagnostics
           path: |
             runtime-diagnostics/
-            app/build/outputs/mapping/optimized/mapping.txt
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
           if-no-files-found: ignore

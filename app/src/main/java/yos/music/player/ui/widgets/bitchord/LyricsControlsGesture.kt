@@ -3,7 +3,6 @@ package yos.music.player.ui.widgets.bitchord
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -22,9 +21,8 @@ import androidx.compose.ui.input.pointer.pointerInput
  */
 private const val TAP_SLOP_FACTOR = 2.5f
 
-/** Reveal controls on a lower-half tap using normal Compose tap arbitration.
- * Never consume movement at the Initial pass: doing so cancels LazyColumn's
- * drag detector before it can cross touch slop, even if we later let go.
+/** Observe empty-space taps without taking pointer ownership from the list.
+ * Lyric rows keep their seek clicks and drags can start anywhere in the panel.
  */
 @Composable
 internal fun Modifier.revealLyricsControlsOnTap(
@@ -35,16 +33,24 @@ internal fun Modifier.revealLyricsControlsOnTap(
     return pointerInput(enabled) {
         if (!enabled) return@pointerInput
         awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             if (down.position.y < size.height / 2f || down.type == PointerType.Mouse) {
                 return@awaitEachGesture
             }
-            down.consume()
-            val up = waitForUpOrCancellation()
-            if (up != null) {
-                up.consume()
-                currentOnReveal.value()
-            }
+            var dragged = false
+            var claimed = down.isConsumed
+            do {
+                val event = awaitPointerEvent(PointerEventPass.Final)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                claimed = claimed || change.isConsumed
+                if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop ||
+                    event.changes.size > 1
+                ) dragged = true
+                if (!change.pressed) {
+                    if (!dragged && !claimed) currentOnReveal.value()
+                    break
+                }
+            } while (true)
         }
     }
 }

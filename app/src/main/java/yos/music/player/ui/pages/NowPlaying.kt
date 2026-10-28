@@ -310,6 +310,7 @@ fun NowPlaying(
     nowPageLambda: () -> String,
     showNowPlaying: () -> Boolean,
     showMiniPlayer: () -> Boolean,
+    handleGestureModifier: Modifier = Modifier,
     nowPageOnChanged: (String) -> Unit
 ) =
     Surface(
@@ -426,6 +427,12 @@ fun NowPlaying(
             // Share the real seek-bar boundary with the lyric viewport. The
             // translation row and control padding make a height fraction wrong.
             val lyricSeekBarTop = remember { mutableFloatStateOf(Float.NaN) }
+            var albumInfoBottom by remember { mutableFloatStateOf(Float.NaN) }
+            var controlPanelTop by remember { mutableFloatStateOf(Float.NaN) }
+            val albumControlsPadding = if (albumInfoBottom.isFinite() && controlPanelTop.isFinite()) {
+                with(playerDensity) { (albumInfoBottom - controlPanelTop).toDp() + 12.dp }
+                    .coerceAtLeast(0.dp)
+            } else 28.dp
 
             YosWrapper {
                 LaunchedEffect(nowPageLambda()) {
@@ -491,12 +498,15 @@ fun NowPlaying(
 
             // 这是小把手
             YosWrapper {
-                Column(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().then(handleGestureModifier)) {
                     Box(
                         Modifier
                             .fillMaxWidth()
                             .padding(top = playerStatusTop)
-                            .padding(top = 20.dp).zIndex(3f), contentAlignment = Alignment.Center
+                            .height(44.dp)
+                            .semantics { contentDescription = "Minimize player" }
+                            .clickable { scope.launch { onMinimizeNowPlaying() } }
+                            .zIndex(3f), contentAlignment = Alignment.Center
                     ) {
                         Box(
                             Modifier
@@ -550,6 +560,9 @@ fun NowPlaying(
                                                 transitionSpec = {
                                                     fadeIn() togetherWith fadeOut()
                                                 }, modifier = Modifier.padding(horizontal = 32.dp)
+                                                    .onGloballyPositioned {
+                                                        albumInfoBottom = it.positionInRoot().y + it.size.height
+                                                    }
                                             ) {
                                                 Row(
                                                     Modifier
@@ -685,6 +698,7 @@ fun NowPlaying(
                             /*.fillMaxHeight(0.385f)*/
                             .fillMaxHeight(0.437f)
                             .fillMaxWidth()
+                            .onGloballyPositioned { controlPanelTop = it.positionInRoot().y }
                     ) {
 
                         YosWrapper {
@@ -721,6 +735,7 @@ fun NowPlaying(
                                                 Box(
                                                     modifier = Modifier
                                                         .overlayEffect()
+                                                        .size(48.dp)
                                                         .alpha(0.4f)
                                                         .clickable(
                                                             enabled = translationButtonEnabled.value,
@@ -824,7 +839,7 @@ fun NowPlaying(
                                                     CompositingStrategy.Offscreen
                                                 //this.alpha = controlAlpha.value
                                             }*/
-                                            .padding(top = 52.dp),
+                                            .padding(top = if (nowPageLambda() == Album) albumControlsPadding else 52.dp),
                                         onWhile = {
                                             shuffleModeEnabled.value =
                                                 queueShuffleEnabled.value
@@ -1730,6 +1745,8 @@ private fun ActionButtonsRow(
 
         Box(
             modifier = Modifier
+                .size(48.dp)
+                .semantics { contentDescription = "Toggle favorite" }
                 .clickable(
                     onClick = {
                         //println("收藏 开始")
@@ -1748,8 +1765,7 @@ private fun ActionButtonsRow(
                     },
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }
-                )
-                .size(dp),
+                ),
             contentAlignment = Alignment.Center
         ) {
             AnimatedContent(
@@ -1777,7 +1793,7 @@ private fun ActionButtonsRow(
             }
         }
 
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
         // No graphicsLayer rotation here: the underlying drawable
         // (ic_nowplaying_more / _fill) is drawn natively as a horizontal
@@ -1788,7 +1804,7 @@ private fun ActionButtonsRow(
         // drawable and hitbox are now horizontal and aligned.
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(48.dp)
                 .semantics { contentDescription = "More song options" }
                 .clickable(
                     onClick = {
