@@ -1,5 +1,5 @@
 name: Music Android runtime check
-run-name: Music build 34 — scrolling and touch regression checks
+run-name: Music build 35 — full-player scrolling with the drag handle enabled
 on:
   push:
     branches: [fix/pixel-media-artwork]

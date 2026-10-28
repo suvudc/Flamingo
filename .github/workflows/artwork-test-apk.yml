@@ -1,5 +1,5 @@
 name: Music optimized APK
-run-name: Music build 34 — compact spacing and reliable touch
+run-name: Music build 35 — confine handle dragging to the header
 
 on:
   push:
@@ -49,9 +49,9 @@ jobs:
           new_cert=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' app/build/signing-verification.txt)
           test -n "$old_cert" && test "$old_cert" = "$new_cert"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$new_apk" > app/build/apk-manifest.txt
-          grep -q "package: name='yos.music.player.music' versionCode='34'" app/build/apk-manifest.txt
+          grep -q "package: name='yos.music.player.music' versionCode='35'" app/build/apk-manifest.txt
           sha256sum "$new_apk" > app/build/apk-sha256.txt
-          echo 'Verified: build 34 can update build 32 with the same signing identity.'
+          echo 'Verified: build 35 retains the original Music update signing identity.'
       - name: Upload optimized APK
         uses: actions/upload-artifact@v4
         with:

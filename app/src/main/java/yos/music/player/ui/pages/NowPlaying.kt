@@ -498,12 +498,14 @@ fun NowPlaying(
 
             // 这是小把手
             YosWrapper {
-                Column(Modifier.fillMaxWidth().then(handleGestureModifier)) {
+                Column(Modifier.fillMaxWidth()) {
                     Box(
                         Modifier
                             .fillMaxWidth()
                             .padding(top = playerStatusTop)
                             .height(44.dp)
+                            // The parent can fill the screen; only this box may drag the sheet.
+                            .then(handleGestureModifier)
                             .semantics { contentDescription = "Minimize player" }
                             .clickable { scope.launch { onMinimizeNowPlaying() } }
                             .zIndex(3f), contentAlignment = Alignment.Center

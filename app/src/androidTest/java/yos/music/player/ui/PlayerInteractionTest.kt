@@ -5,6 +5,9 @@ import android.net.Uri
 import android.view.KeyEvent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -109,7 +112,7 @@ class PlayerInteractionTest {
     }
 
     @OptIn(ExperimentalSharedTransitionApi::class)
-    private fun player(onMinimize: () -> Unit = {}) {
+    private fun player(onHandleDrag: (Float) -> Unit = {}, onMinimize: () -> Unit = {}) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val artwork = File(context.cacheDir, "interaction-cover.png")
         val bitmap = Bitmap.createBitmap(600, 600, Bitmap.Config.ARGB_8888)
@@ -140,6 +143,11 @@ class PlayerInteractionTest {
                     navController = rememberNavController(), onMinimizeNowPlaying = { onMinimize() },
                     isPlayingStatusLambda = { false }, isPlayingOnChanged = {},
                     nowPageLambda = { page.value }, showNowPlaying = { true }, showMiniPlayer = { false },
+                    handleGestureModifier = Modifier.draggable(
+                        orientation = Orientation.Vertical,
+                        reverseDirection = true,
+                        state = rememberDraggableState { onHandleDrag(it) },
+                    ),
                     nowPageOnChanged = { page.value = it },
                 )
             }
@@ -178,7 +186,8 @@ class PlayerInteractionTest {
     }
 
     @Test fun fullScreenLyricsKeepTheLowerViewportScrollableAfterControlsHide() {
-        player()
+        var handleDrags = 0
+        player(onHandleDrag = { handleDrags++ })
         compose.onNodeWithContentDescription("Open lyrics").performTouchInput { click(center) }
         compose.mainClock.advanceTimeBy(3_000)
         compose.waitForIdle()
@@ -187,13 +196,40 @@ class PlayerInteractionTest {
         val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
         assertTrue("Hidden controls must leave the whole lower viewport to lyrics",
             root.bottom - panel.bottom < 8f * compose.density.density)
+        for ((start, end) in listOf(.88f to .57f, .56f to .28f, .33f to .08f)) {
+            val before = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+            list.performTouchInput {
+                swipe(Offset(center.x, height * start), Offset(center.x, height * end), 500)
+            }
+            val after = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+            assertTrue("Lyrics must scroll from every region: $start -> $end", after > before)
+        }
+        compose.runOnIdle { assertEquals("Lyric swipes must never drag the handle", 0, handleDrags) }
+        screenshot("full-screen-lyrics-lower-scroll")
+    }
+
+    @Test fun fullScreenLyricsScrollWithControlsVisibleAndTheHandleEnabled() {
+        var handleDrags = 0
+        player(onHandleDrag = { handleDrags++ })
+        compose.onNodeWithContentDescription("Open lyrics").performTouchInput { click(center) }
+        val list = compose.onNode(hasScrollAction())
         val before = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
         list.performTouchInput {
-            swipe(Offset(center.x, height * .88f), Offset(center.x, height * .57f), 500)
+            swipe(Offset(center.x, height * .85f), Offset(center.x, height * .2f), 500)
         }
         val after = list.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
-        assertTrue("Full-screen lyrics must scroll below the midpoint", after > before)
-        screenshot("full-screen-lyrics-lower-scroll")
+        assertTrue("Lyrics must scroll while transport controls are visible", after > before)
+        compose.runOnIdle { assertEquals(0, handleDrags) }
+        screenshot("lyrics-scroll-controls-visible")
+    }
+
+    @Test fun handleDragStillWorksInsideItsOwnBounds() {
+        var distance = 0f
+        player(onHandleDrag = { distance += kotlin.math.abs(it) })
+        compose.onNodeWithContentDescription("Minimize player").performTouchInput {
+            swipe(Offset(center.x, height * .1f), Offset(center.x, height * .9f), 500)
+        }
+        compose.runOnIdle { assertTrue("The handle itself must remain draggable", distance > 0f) }
     }
 
     private fun screenshot(name: String) {
