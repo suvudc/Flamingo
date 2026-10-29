@@ -3,6 +3,13 @@ run-name: Music build 35 — full-player scrolling with the drag handle enabled
 on:
   push:
     branches: [fix/pixel-media-artwork]
+    # These checks cover player gestures; Home queue changes run the unit suite.
+    paths:
+      - 'app/src/main/java/yos/music/player/MainActivity.kt'
+      - 'app/src/main/java/yos/music/player/ui/pages/NowPlaying.kt'
+      - 'app/src/main/java/yos/music/player/ui/widgets/bitchord/**'
+      - 'app/src/main/java/yos/music/player/ui/widgets/MusicLyrics.kt'
+      - 'app/src/androidTest/**'
   workflow_dispatch:
 permissions:
   contents: read

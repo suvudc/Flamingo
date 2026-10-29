@@ -119,8 +119,18 @@ private fun HomeContent(nav: NavController) {
                         Text(stringResource(R.string.home_mix_subtitle), Modifier.padding(start = 8.dp, top = 10.dp),
                             color = c.onSurfaceVariant, fontSize = 14.sp)
                     }
-                    FilledIconButton(onClick = { selection.firstOrNull()?.let { play(it, selection) } },
-                        enabled = selection.isNotEmpty(), modifier = Modifier.align(Alignment.BottomEnd)
+                    FilledIconButton(onClick = {
+                        homeLibraryShuffle(MusicLibrary.songs)?.let { request ->
+                            scope.launch {
+                                MediaController.prepare(
+                                    request.firstSong,
+                                    request.queue,
+                                    shuffleModeEnabled = request.shuffleModeEnabled,
+                                )
+                            }
+                        }
+                    },
+                        enabled = songs.isNotEmpty(), modifier = Modifier.align(Alignment.BottomEnd)
                             .padding(end = 12.dp, bottom = 8.dp).size(68.dp), shape = CircleShape) {
                         Icon(Icons.Rounded.Shuffle, stringResource(R.string.home_play_mix), Modifier.size(36.dp))
                     }
@@ -253,3 +263,4 @@ private fun HomeOverview(nav: NavController) {
         }
     }
 }
+
