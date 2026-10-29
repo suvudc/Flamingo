@@ -2,6 +2,7 @@
 
 package yos.music.player.ui.pages
 
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -42,11 +43,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -97,6 +101,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -113,6 +120,10 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import yos.music.player.ui.widgets.bitchord.lyricViewportHeightPx
+import yos.music.player.ui.widgets.basic.LocalPlayerArtworkMotion
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -127,6 +138,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.zIndex
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -178,6 +191,9 @@ import yos.music.player.ui.theme.YosRoundedCornerShape
 import yos.music.player.ui.UI
 import yos.music.player.ui.markNextNavigationFromNowPlaying
 import yos.music.player.ui.toUI
+import yos.music.player.ui.widgets.MainPlayerLyricStrip
+import yos.music.player.ui.widgets.MusicLyricsPanel
+import yos.music.player.ui.widgets.LyricsProviderContent
 import yos.music.player.ui.widgets.YosLyricView
 import yos.music.player.ui.widgets.effects.YosFloatingLight
 import yos.music.player.ui.widgets.audio.MusicQualityIndicator
@@ -294,6 +310,7 @@ fun NowPlaying(
     nowPageLambda: () -> String,
     showNowPlaying: () -> Boolean,
     showMiniPlayer: () -> Boolean,
+    handleGestureModifier: Modifier = Modifier,
     nowPageOnChanged: (String) -> Unit
 ) =
     Surface(
@@ -302,6 +319,12 @@ fun NowPlaying(
         color = Color.Transparent
     ) {
         val context = LocalContext.current
+        // Read absolute platform insets: the player is an edge-to-edge overlay, and
+        // inherited/consumed Accompanist padding can otherwise put its handle in the cutout.
+        val playerDensity = LocalDensity.current
+        val playerStatusTop = with(playerDensity) {
+            maxOf(WindowInsets.statusBars.getTop(this), WindowInsets.displayCutout.getTop(this)).toDp()
+        }
 
         val lrcEntries: MutableState<List<List<Pair<Float, String>>>> =
             MediaViewModelObject.lrcEntries
@@ -317,9 +340,9 @@ fun NowPlaying(
         val lifecycleState = LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
         val animatedAlbumCoverState = rememberAnimatedAlbumCoverState(
             music = thisMusicPlaying.value,
-            isPlaying = isPlayingStatusLambda(),
+            isPlaying = isPlayingStatusLambda() && LocalPlayerArtworkMotion.current?.closing != true,
             active = nowPageLambda() == Album &&
-                showNowPlaying() &&
+                (LocalPlayerArtworkMotion.current?.settled == true) &&
                 lifecycleState.value.isAtLeast(Lifecycle.State.STARTED)
         )
 
@@ -401,6 +424,15 @@ fun NowPlaying(
             val scope = rememberCoroutineScope()
 
             val alphaAnim = remember { Animatable(0f) }
+            // Share the real seek-bar boundary with the lyric viewport. The
+            // translation row and control padding make a height fraction wrong.
+            val lyricSeekBarTop = remember { mutableFloatStateOf(Float.NaN) }
+            var albumInfoBottom by remember { mutableFloatStateOf(Float.NaN) }
+            var controlPanelTop by remember { mutableFloatStateOf(Float.NaN) }
+            val albumControlsPadding = if (albumInfoBottom.isFinite() && controlPanelTop.isFinite()) {
+                with(playerDensity) { (albumInfoBottom - controlPanelTop).toDp() + 12.dp }
+                    .coerceAtLeast(0.dp)
+            } else 28.dp
 
             YosWrapper {
                 LaunchedEffect(nowPageLambda()) {
@@ -429,6 +461,7 @@ fun NowPlaying(
             }
 
             // 歌词
+            if (nowPageLambda() == Lyric) {
             YosWrapper {
 
                 Column(
@@ -448,6 +481,8 @@ fun NowPlaying(
                         isTtmlLyrics = { isTtmlLyrics.value },
                         weightLambda = { showControl.value },
                         translationLambda = { translation.value },
+                        seekBarTop = { lyricSeekBarTop.floatValue },
+                        onHideControls = { showControl.value = false },
                         onBackClick = {
                             showControl.value = true
                             lastClickTime.longValue =
@@ -459,14 +494,21 @@ fun NowPlaying(
                 }
             }
 
+            }
+
             // 这是小把手
             YosWrapper {
                 Column(Modifier.fillMaxWidth()) {
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(top = 20.dp), contentAlignment = Alignment.Center
+                            .padding(top = playerStatusTop)
+                            .height(44.dp)
+                            // The parent can fill the screen; only this box may drag the sheet.
+                            .then(handleGestureModifier)
+                            .semantics { contentDescription = "Minimize player" }
+                            .clickable { scope.launch { onMinimizeNowPlaying() } }
+                            .zIndex(3f), contentAlignment = Alignment.Center
                     ) {
                         Box(
                             Modifier
@@ -489,8 +531,8 @@ fun NowPlaying(
                         targetState = nowPageLambda(),
                         modifier = Modifier
                             .fillMaxSize()
-                            .statusBarsPadding()
-                            .padding(top = 22.dp)
+                            .padding(top = playerStatusTop)
+                            .padding(top = 44.dp)
                     ) {
                         //println("nowPage: ${nowPageLambda()}")
                         //println("nowPageIt: $it")
@@ -499,10 +541,9 @@ fun NowPlaying(
                                 Column(
                                     Modifier
                                         .fillMaxSize()
-                                        .clickable(enabled = false, onClick = {})
                                 ) {
                                     YosWrapper {
-                                        Column(Modifier.fillMaxHeight(0.595f)) {
+                                        Column(Modifier.fillMaxHeight(0.56f)) {
                                             val isVisible = nowPageLambda() == Album
 
                                             Album(
@@ -521,6 +562,9 @@ fun NowPlaying(
                                                 transitionSpec = {
                                                     fadeIn() togetherWith fadeOut()
                                                 }, modifier = Modifier.padding(horizontal = 32.dp)
+                                                    .onGloballyPositioned {
+                                                        albumInfoBottom = it.positionInRoot().y + it.size.height
+                                                    }
                                             ) {
                                                 Row(
                                                     Modifier
@@ -591,8 +635,7 @@ fun NowPlaying(
                                     Column(
                                         Modifier
                                             .fillMaxSize()
-                                            .clickable(enabled = false, onClick = {})
-                                    ) {
+                                        ) {
                                         val isVisible = nowPageLambda() == PlayingList
                                         PlayingBar(
                                             modifier = Modifier.sharedElementWithCallerManagedVisibility(
@@ -623,13 +666,12 @@ fun NowPlaying(
                     exit = fadeOut(tween(AnimDurationMillis)),
                     modifier = Modifier
                         .fillMaxSize()
-                        .statusBarsPadding()
+                        .padding(top = playerStatusTop)
                         .padding(top = 114.dp)
                 ) {
                     Column(
                         Modifier
                             .fillMaxSize()
-                            .clickable(enabled = false, onClick = {})
                     ) {
                         PlayingList(
                             shuffleModeEnabledLambda = { shuffleModeEnabled.value },
@@ -651,31 +693,15 @@ fun NowPlaying(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .statusBarsPadding(), verticalArrangement = Arrangement.Bottom
+                        .padding(top = playerStatusTop), verticalArrangement = Arrangement.Bottom
                 ) {
                     Box(
                         Modifier
                             /*.fillMaxHeight(0.385f)*/
                             .fillMaxHeight(0.437f)
                             .fillMaxWidth()
+                            .onGloballyPositioned { controlPanelTop = it.positionInRoot().y }
                     ) {
-                        YosWrapper {
-                            if (showControl.value) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(top = 40.dp)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = {
-                                                //showControl.value = true
-                                                /*lastClickTime.longValue =
-                                                TimeUtils.getNowMills()*/
-                                            })
-                                )
-                            }
-                        }
 
                         YosWrapper {
                             Column(
@@ -691,6 +717,10 @@ fun NowPlaying(
                                         shrinkTowards = Alignment.Top,
                                         targetHeight = { (it / 1.4).toInt() })
                                 ) {
+                                    // An alpha-zero clickable still wins pointer hit testing. This
+                                    // lyrics-only control overlaps the album overflow button, so keep
+                                    // it out of the tree entirely on the album and queue screens.
+                                    if (nowPageLambda() == Lyric) {
                                     YosWrapper {
                                         Row(
                                             Modifier
@@ -707,6 +737,7 @@ fun NowPlaying(
                                                 Box(
                                                     modifier = Modifier
                                                         .overlayEffect()
+                                                        .size(48.dp)
                                                         .alpha(0.4f)
                                                         .clickable(
                                                             enabled = translationButtonEnabled.value,
@@ -751,8 +782,14 @@ fun NowPlaying(
                                             }
                                         }
                                     }
+                                    }
 
                                     PlayerControl(
+                                        onSeekBarTopChanged = { top ->
+                                            // Cache even on the album page: switching pages does not
+                                            // necessarily place this unchanged slider again.
+                                            lyricSeekBarTop.floatValue = top
+                                        },
                                         isPlayingLambda = isPlayingStatusLambda,
                                         isPlayingOnChanged = isPlayingOnChanged,
                                         onPrevious = {
@@ -804,7 +841,7 @@ fun NowPlaying(
                                                     CompositingStrategy.Offscreen
                                                 //this.alpha = controlAlpha.value
                                             }*/
-                                            .padding(top = 52.dp),
+                                            .padding(top = if (nowPageLambda() == Album) albumControlsPadding else 52.dp),
                                         onWhile = {
                                             shuffleModeEnabled.value =
                                                 queueShuffleEnabled.value
@@ -851,6 +888,12 @@ private fun ColumnScope.Album(
 
     YosWrapper {
         val dp = (7 + (27 * scale.value)).dp
+        val artworkMotion = LocalPlayerArtworkMotion.current
+        val artworkLayer = rememberGraphicsLayer()
+        DisposableEffect(artworkMotion, artworkLayer) {
+            artworkMotion?.artworkLayer = artworkLayer
+            onDispose { artworkMotion?.let { if (it.artworkLayer === artworkLayer) it.artworkLayer = null } }
+        }
         ShadowImageWithCache(
             dataLambda = { music()?.thumb }, contentDescription = null, modifier = Modifier
                 .fillMaxWidth()
@@ -860,7 +903,15 @@ private fun ColumnScope.Album(
                     // scaleY = scale.value
                 }
                 .padding(start = dp, end = dp, bottom = dp)
-                .then(modifier),
+                .then(modifier)
+                .onGloballyPositioned { artworkMotion?.captureSource(it) }
+                .graphicsLayer { alpha = if (artworkMotion?.hasFlight == true) 0f else 1f }
+                .drawWithContent {
+                    if (artworkMotion?.closing != true) {
+                        artworkLayer.record { this@drawWithContent.drawContent() }
+                    }
+                    drawLayer(artworkLayer)
+                },
             imageQuality = ImageQuality.RAW,
             shadowOverlay = true,
             overlayContent = {
@@ -1618,6 +1669,7 @@ private fun SmallMusicListItem(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Lyric(
     lrcEntries: () -> List<List<Pair<Float, String>>>,
@@ -1627,120 +1679,36 @@ private fun Lyric(
     isTtmlLyrics: () -> Boolean,
     weightLambda: () -> Boolean,
     translationLambda: () -> Boolean,
+    seekBarTop: () -> Float,
     mainViewModel: MainViewModel,
     mediaViewModel: MediaViewModel,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onHideControls: () -> Unit
 ) = YosWrapper {
 
-    val context = LocalContext.current
-
-    Column(
-        Modifier
-            .fillMaxSize()
-    ) {
-        YosWrapper {
-            Spacer(modifier = Modifier.statusBarsHeight(110.dp))
-
-            YosLyricView(
-                //mediaViewModel = mediaViewModel,
-                lrcEntriesLambda = lrcEntries,
-                lineEndTimesLambda = lineEndTimes,
-                lineTransliterationsLambda = lineTransliterations,
-                lineSubtitlesLambda = lineSubtitles,
-                isTtmlLyricsLambda = isTtmlLyrics,
-                liveTimeLambda = {
-                    (mediaControl?.currentPosition ?: 0).toInt()
-                },
-                mediaEvent = object : YosMediaEvent {
-                    override fun onSeek(position: Int) {
-                        mediaControl?.seekTo(position.toLong())
-                    }
-                },
-                translationLambda = translationLambda,
-                blurLambda = {
-                    SettingsLibrary.LyricBlurEffect
-                },
-                uiConfig = YosUIConfig(
-                    noLrcText = stringResource(id = R.string.tip_no_lyrics)
-                ),
-                weightLambda = weightLambda,
-                modifier = Modifier.drawWithCache {
-                    onDrawWithContent {
-                        val overlayPaint = Paint().apply {
-                            blendMode = BlendMode.Plus
-                        }
-                        val rect = Rect(0f, 0f, size.width, size.height)
-                        val canvas = this.drawContext.canvas
-
-                        canvas.saveLayer(rect, overlayPaint)
-
-                        val colors = if (weightLambda()) {
-                            listOf(
-                                Color.Transparent,
-                                Color(0x59000000),
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color(0x59000000),
-                                Color(0x21000000),
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Transparent
-                            )
-                        } else {
-                            listOf(
-                                Color.Transparent,
-                                Color(0x59000000),
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                /*Color(0xD9000000),
-                                Color(0xA6000000),
-                                Color(0x73000000),
-                                Color(0x59000000),
-                                Color(0x3F000000),
-                                Color(0x21000000),
-                                Color(0x0C000000),*/
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black,
-                                Color.Black
-                            )
-                        }
-
-                        drawContent()
-
-                        drawRect(
-                            brush = Brush.verticalGradient(colors),
-                            blendMode = BlendMode.DstIn
-                        )
-
-                        canvas.restore()
-                    }
-                },
-                onBackClick = onBackClick
-            )
-        }
+    val density = LocalDensity.current
+    val statusTop = with(density) {
+        maxOf(WindowInsets.statusBars.getTop(this), WindowInsets.displayCutout.getTop(this)).toDp()
+    }
+    BoxWithConstraints(Modifier.fillMaxSize().padding(top = statusTop + 154.dp)) {
+        var panelTop by remember { mutableFloatStateOf(Float.NaN) }
+        val viewportHeight = lyricViewportHeightPx(
+            panelTop = panelTop,
+            seekBarTop = seekBarTop(),
+            availableHeight = constraints.maxHeight.toFloat(),
+            controlsVisible = weightLambda(),
+            clearance = with(density) { 8.dp.toPx() },
+        )
+        MusicLyricsPanel(Modifier.fillMaxWidth()
+                .height(with(density) { viewportHeight.toDp() })
+                .onGloballyPositioned { panelTop = it.positionInRoot().y }
+                .clipToBounds(),
+                showTranslation = translationLambda(), controlsOpen = weightLambda(),
+                onRevealControls = onBackClick, onHideControls = onHideControls,
+                onSeek = { onBackClick(); mediaControl?.seekTo(it) })
     }
 }
+
 
 @Composable
 private fun ActionButtonsRow(
@@ -1748,37 +1716,39 @@ private fun ActionButtonsRow(
     onMinimizeNowPlaying: suspend () -> Unit,
     musicPlayingLambda: () -> YosMediaItem?,
 ) {
+    val context = LocalContext.current
+
+    // Overflow menu state. The sheet renders only when this is true; the icon
+    // swaps to its filled variant while open (PRD §5.1 FR-OM-2).
+    val overflowSheetOpen = remember { mutableStateOf(false) }
+    // Snapshot of the song that was playing when the sheet was opened
+    // (PRD §5.3 FR-OM-8). All actions in the sheet refer to this item.
+    val snapshotSong = remember { mutableStateOf<YosMediaItem?>(null) }
+    val actionButtonScope = rememberCoroutineScope()
+
+    NowPlayingOverflowSheet(
+        isOpen = overflowSheetOpen,
+        song = snapshotSong.value,
+        navController = navController,
+        onOpenLibraryTarget = {
+            actionButtonScope.launch {
+                onMinimizeNowPlaying()
+            }
+            navController.toUI(it.route)
+        },
+    )
+
+
     Row(
-        modifier = Modifier
-            .overlayEffect(),
+        modifier = Modifier.overlayEffect(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val dp = 28.dp
 
-        val context = LocalContext.current
-
-        // Overflow menu state. The sheet renders only when this is true; the icon
-        // swaps to its filled variant while open (PRD §5.1 FR-OM-2).
-        val overflowSheetOpen = remember { mutableStateOf(false) }
-        // Snapshot of the song that was playing when the sheet was opened
-        // (PRD §5.3 FR-OM-8). All actions in the sheet refer to this item.
-        val snapshotSong = remember { mutableStateOf<YosMediaItem?>(null) }
-        val actionButtonScope = rememberCoroutineScope()
-
-        NowPlayingOverflowSheet(
-            isOpen = overflowSheetOpen,
-            song = snapshotSong.value,
-            navController = navController,
-            onOpenLibraryTarget = {
-                actionButtonScope.launch {
-                    onMinimizeNowPlaying()
-                }
-                navController.toUI(it.route)
-            },
-        )
-
         Box(
             modifier = Modifier
+                .size(48.dp)
+                .semantics { contentDescription = "Toggle favorite" }
                 .clickable(
                     onClick = {
                         //println("收藏 开始")
@@ -1797,8 +1767,7 @@ private fun ActionButtonsRow(
                     },
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }
-                )
-                .size(dp),
+                ),
             contentAlignment = Alignment.Center
         ) {
             AnimatedContent(
@@ -1826,7 +1795,7 @@ private fun ActionButtonsRow(
             }
         }
 
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(4.dp))
 
         // No graphicsLayer rotation here: the underlying drawable
         // (ic_nowplaying_more / _fill) is drawn natively as a horizontal
@@ -1837,6 +1806,8 @@ private fun ActionButtonsRow(
         // drawable and hitbox are now horizontal and aligned.
         Box(
             modifier = Modifier
+                .size(48.dp)
+                .semantics { contentDescription = "More song options" }
                 .clickable(
                     onClick = {
                         // Snapshot the currently-playing song at open time
@@ -1846,8 +1817,8 @@ private fun ActionButtonsRow(
                         overflowSheetOpen.value = true
                     },
                     indication = null,
-                    interactionSource = remember { MutableInteractionSource() })
-                .size(dp),
+                    interactionSource = remember { MutableInteractionSource() },
+                    role = androidx.compose.ui.semantics.Role.Button),
             contentAlignment = Alignment.Center
         ) {
             AnimatedContent(
@@ -1865,14 +1836,14 @@ private fun ActionButtonsRow(
                 if (it) {
                     Icon(
                         painterResource(id = R.drawable.ic_nowplaying_more_fill),
-                        contentDescription = null,
+                        contentDescription = "More song options",
                         modifier = Modifier
                             .size(dp)
                     )
                 } else {
                     Icon(
                         painterResource(id = R.drawable.ic_nowplaying_more),
-                        contentDescription = null,
+                        contentDescription = "More song options",
                         modifier = Modifier
                             .overlayEffect()
                             .size(dp)
@@ -1950,7 +1921,10 @@ private fun NowPlayingOverflowSheet(
                         navigationDirection.intValue = SheetNavigationForward
                         screen = OverflowScreen.SleepTimer
                     },
+                    onPickLyrics = { screen = OverflowScreen.Lyrics },
                 )
+
+                OverflowScreen.Lyrics -> LyricsProviderContent(onDone = onDismiss)
 
                 OverflowScreen.Playlist -> PlayListPickerContent(
                     songToAdd = song,
@@ -1973,7 +1947,7 @@ private fun NowPlayingOverflowSheet(
     }
 }
 
-private enum class OverflowScreen { Menu, Playlist, SleepTimer }
+private enum class OverflowScreen { Menu, Playlist, SleepTimer, Lyrics }
 
 private enum class OverflowLibraryTarget(val route: String)
 {
@@ -1989,6 +1963,7 @@ private fun OverflowMenuBody(
     onDismiss: () -> Unit,
     onPickPlaylist: () -> Unit,
     onPickSleepTimer: () -> Unit,
+    onPickLyrics: () -> Unit,
 ) {
     val addToPlaylistLabel = stringResource(R.string.now_playing_overflow_add_to_playlist)
     val sleepTimerLabel = stringResource(R.string.now_playing_overflow_sleep_timer)
@@ -2000,9 +1975,11 @@ private fun OverflowMenuBody(
 
     val items = remember(
         addToPlaylistLabel, sleepTimerLabel, sleepTimerActive, accent,
-        onPickPlaylist, onPickSleepTimer,
+        onPickPlaylist, onPickSleepTimer, onPickLyrics,
     ) {
         listOf(
+            ActionItem(iconRes = R.drawable.ic_nowplaying_lyrics, label = "Lyrics provider",
+                onClick = onPickLyrics),
             ActionItem(
                 iconRes = R.drawable.ic_action_add,
                 label = addToPlaylistLabel,
@@ -2114,6 +2091,7 @@ private fun NowPlayingOverflowHeader(
                             ?.item
                             ?: return@ClickableText
 
+                        Vibrator.click(context)
                         LibraryObject.setTargetArtistName(artistName)
                         LibraryObject.setArtistSongsSearchOnOpen(false)
                         navController.markNextNavigationFromNowPlaying()
@@ -2372,6 +2350,7 @@ private fun BluetoothDevice.isConnected(): Boolean {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlayerControl(
+    onSeekBarTopChanged: (Float) -> Unit = {},
     isPlayingLambda: () -> Boolean,
     isPlayingOnChanged: (Boolean) -> Unit,
     onPrevious: () -> Unit,
@@ -2408,6 +2387,8 @@ private fun PlayerControl(
                 .padding(bottom = 15.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            if (nowPage() == Album) MainPlayerLyricStrip(
+                modifier = Modifier.padding(horizontal = 7.dp), onOpenLyrics = onLyrics)
             YosWrapper {
                 // 启动作用
                 YosWrapper {
@@ -2475,6 +2456,7 @@ private fun PlayerControl(
                             inactiveTrackColor = Color(0x0DFFFFFF)
                         ),
                         modifier = Modifier
+                            .onGloballyPositioned { onSeekBarTopChanged(it.positionInRoot().y) }
                             .overlayEffect()
                             .alpha(0.45f)
                             .height(14.dp),
@@ -2483,7 +2465,7 @@ private fun PlayerControl(
                         track = {
                             Track(
                                 sliderPositions = SliderPositions(
-                                    initialActiveRange = 0f..(sliderPosition.floatValue / playingDuration.longValue)
+                                    initialActiveRange = 0f..(sliderPosition.floatValue / playingDuration.longValue.coerceAtLeast(1L))
                                 ), height = 7.dp
                             )
                         }

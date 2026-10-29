@@ -1,5 +1,6 @@
 package yos.music.player.ui.pages.library.albums
 
+import yos.music.player.ui.widgets.basic.hapticClickable as clickable
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -9,7 +10,6 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column

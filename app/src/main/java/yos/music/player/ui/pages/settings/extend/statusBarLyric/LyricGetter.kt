@@ -77,7 +77,7 @@ fun LyricGetter(navController: NavController) =
                                     // desc = stringResource(id = R.string.settings_others_statusbarlyric_debug_send_lyric_desc),
                                     superLink = true
                                 ) {
-                                    lyricAPI.sendLyric("[${(99999..9999999).random()}] Flamingo Lyric Debug")
+                                    lyricAPI.sendLyric("[${(99999..9999999).random()}] Music Lyric Debug")
                                 }
                             }
                             ListHeader(content = stringResource(id = R.string.settings_others_statusbarlyric_debug_send_lyric_desc))

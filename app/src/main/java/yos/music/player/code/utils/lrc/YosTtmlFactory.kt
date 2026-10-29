@@ -47,6 +47,8 @@ class YosTtmlFactory {
                 linePairs.add(lineBegin to "")
                 if (wordSegments.isNotEmpty()) {
                     wordSegments.forEach { segment ->
+                        val previousEnd = linePairs.last().first
+                        if (segment.startTime > previousEnd) linePairs.add(segment.startTime to "")
                         linePairs.add(segment.endTime to segment.text)
                     }
                 } else {
@@ -76,7 +78,8 @@ class YosTtmlFactory {
                 otherSideForLines = otherSideForLines,
                 transliterations = transliterations,
                 subtitles = subtitles,
-                isTtml = true
+                isTtml = true,
+                bitChordLines = yos.music.player.code.lyrics.bitchord.TtmlLyrics.parse(ttmlText)
             )
         }.getOrNull()
     }
@@ -89,6 +92,7 @@ class YosTtmlFactory {
     }
 
     private data class TtmlWordSegment(
+        val startTime: Float,
         val endTime: Float,
         val text: String
     )
@@ -122,7 +126,9 @@ class YosTtmlFactory {
                         pendingText.clear()
 
                         if (segmentText.isNotEmpty()) {
-                            wordSegments.add(TtmlWordSegment(segmentEnd, segmentText))
+                            val segmentStart = childElement.readTimeAttribute("begin")
+                                ?: wordSegments.lastOrNull()?.endTime ?: lineBegin
+                            wordSegments.add(TtmlWordSegment(segmentStart, segmentEnd, segmentText))
                         }
                     } else {
                         pendingText.append(childElement.textContent)

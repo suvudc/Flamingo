@@ -6,5 +6,6 @@ data class YosParsedLyricData(
     val otherSideForLines: List<Boolean>,
     val transliterations: List<String?>,
     val subtitles: List<String?>,
-    val isTtml: Boolean
+    val isTtml: Boolean,
+    val bitChordLines: List<yos.music.player.code.lyrics.bitchord.LyricLine>? = null
 )

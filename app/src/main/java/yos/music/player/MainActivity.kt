@@ -31,6 +31,8 @@ import androidx.compose.animation.core.EaseOutQuart
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -90,7 +92,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
@@ -158,6 +160,18 @@ import yos.music.player.ui.theme.YosMusicTheme
 import yos.music.player.ui.theme.YosRoundedCornerShape
 import yos.music.player.ui.theme.isFlamingoInDarkMode
 import yos.music.player.ui.theme.withNight
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.zIndex
+import yos.music.player.ui.widgets.basic.rememberGlassDockScrollState
+import yos.music.player.ui.widgets.basic.playerDismissGesture
+import yos.music.player.ui.widgets.basic.playerSheetTargetOpen
+import yos.music.player.ui.widgets.basic.playerSheetProgress
+import yos.music.player.ui.widgets.basic.StartupBrand
+import androidx.compose.runtime.CompositionLocalProvider
+import yos.music.player.ui.widgets.basic.LocalPlayerArtworkMotion
+import yos.music.player.ui.widgets.basic.PlayerArtworkMotion
+import yos.music.player.ui.widgets.basic.playerDismissVisuals
+import yos.music.player.ui.widgets.basic.PlayerArtworkFlight
 import yos.music.player.ui.widgets.basic.BottomNavigator
 import yos.music.player.ui.widgets.basic.ImageQuality
 import yos.music.player.ui.widgets.basic.NavItem
@@ -184,18 +198,43 @@ class MainActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            window.decorView.post {
+                val reportButton = android.widget.Button(this).apply {
+                    text = "Artwork report"
+                    setOnClickListener {
+                        startActivity(android.content.Intent().setClassName(
+                            this@MainActivity,
+                            "yos.music.player.ArtworkDiagnosticsActivity"
+                        ))
+                    }
+                }
+                addContentView(reportButton, android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.TOP or android.view.Gravity.END
+                ).apply { topMargin = (48 * resources.displayMetrics.density).toInt() })
+            }
+        }
         enableEdgeToEdge()
         setContent {
             YosMusicTheme {
+                val artworkMotion = remember { PlayerArtworkMotion() }
+                val appGlassHaze = remember { HazeState() }
+                CompositionLocalProvider(LocalPlayerArtworkMotion provides artworkMotion) {
                 ProvideWindowInsets {
                     val context = LocalContext.current
                     val density = LocalDensity.current
 
+                    val showStartupBrand = remember { mutableStateOf(savedInstanceState == null) }
                     LaunchedEffect(Unit) {
+                        val startupStarted = android.os.SystemClock.uptimeMillis()
                         withFrameNanos {}
                         MediaController.ensureInitialized(context)
                         ListenHistoryManager.loadHistory()
                         ListenStatsManager.loadEvents()
+                        kotlinx.coroutines.delay((600L - (android.os.SystemClock.uptimeMillis() - startupStarted)).coerceAtLeast(0L))
+                        showStartupBrand.value = false
                     }
 
                     val offsetY = remember("MainActivity_offsetY") { Animatable(0f) }
@@ -221,19 +260,12 @@ class MainActivity : BaseActivity() {
                         contentColor = Color.Black withNight Color.White
                     ) {*/
                         val miniPlayerHeight = 62.dp
-                        val height = remember("MainActivity_height") { mutableIntStateOf(0) }
-
-                        val navHeight = remember("MainActivity_navHeight") {
-                            with(density) {
-                                height.intValue.toDp().plus(miniPlayerHeight)
-                            }
-                        }
                         // 逻辑初始化区域
                         val navController = rememberNavController()
                         val navSpec = spring(
-                            stiffness = 400f,
+                            stiffness = 195f,
                             dampingRatio = 1f,
-                            visibilityThreshold = 0.001f
+                            visibilityThreshold = 0.5f
                         )
                         // val scaffoldState = rememberBottomSheetScaffoldState()
                         val route = rememberSaveable(key = "MainActivity_route") {
@@ -248,13 +280,11 @@ class MainActivity : BaseActivity() {
                                 backstackEntry.value?.destination?.route ?: UI.HomePage
                         }
 
+                        val playerSheetOpen = remember { mutableStateOf(false) }
                         // 显示控制区域
                         val yosBottomSheetConfig = object {
                             val progress
-                                get() = if (parentHeight.intValue == 0) 0f else abs(offsetY.value / parentHeight.intValue).coerceIn(
-                                    0f,
-                                    1f
-                                )
+                                get() = playerSheetProgress(playerSheetOpen.value, offsetY.value, parentHeight.intValue)
                             val menuAlpha
                                 get() = 1f - progress
                             val mainContainerCardScale
@@ -280,12 +310,29 @@ class MainActivity : BaseActivity() {
                             }
                         }
 
+                        suspend fun minimizePlayer(velocity: Float = 0f) {
+                            if (artworkMotion.closing) return
+                            artworkMotion.begin(yosBottomSheetConfig.progress)
+                            try {
+                                offsetY.animateTo(0f, initialVelocity = velocity, animationSpec = navSpec)
+                                playerSheetOpen.value = false
+                                artworkMotion.playerOpen = false
+                                artworkMotion.reset()
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                // A resize or another animation must never leave a frozen ghost player.
+                                artworkMotion.cancelClose()
+                                throw cancelled
+                            }
+                        }
+
                         val nowPageNowPlaying =
                             rememberSaveable(key = "MainActivity_nowPageNowPlaying") {
                                 mutableStateOf(Album)
                             }
 
-                        val hazeState = remember { HazeState() }
+                        val hazeState = appGlassHaze
+                        val glassDock = rememberGlassDockScrollState()
+                        LaunchedEffect(route.value) { glassDock.expand() }
                         YosWrapper {
                             val isNight = isFlamingoInDarkMode()
                             if (showNowPlaying.value) {
@@ -335,26 +382,14 @@ class MainActivity : BaseActivity() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .graphicsLayer {
-                                        val thisMainContainerCardScale =
-                                            yosBottomSheetConfig.mainContainerCardScale
-                                        scaleX = thisMainContainerCardScale
-                                        scaleY = thisMainContainerCardScale
-                                    }
-                                    .graphicsLayer {
-                                        //compositingStrategy = CompositingStrategy.Offscreen
-                                        //transformOrigin = TransformOrigin(0.5f, 1f)
-
-                                        if (yosBottomSheetConfig.thisShowCorner && !yosBottomSheetConfig.RTCorner) {
-                                            compositingStrategy = CompositingStrategy.Offscreen
-                                            clip = true
-                                            shape = YosRoundedCornerShape(screenCorner.dp)
-                                        } else {
-                                            compositingStrategy = CompositingStrategy.ModulateAlpha
-                                            clip = false
-                                        }
-
-                                        if (!yosBottomSheetConfig.barShowCorner) {
-                                            alpha = 0f
+                                        // Keep the glass backdrop stationary. Scaling its entire offscreen
+                                        // layer invalidated the blur source on every frame of the flight.
+                                        alpha = when {
+                                            artworkMotion.closing -> playerDismissVisuals(
+                                                yosBottomSheetConfig.progress, artworkMotion.startProgress
+                                            ).pageAlpha
+                                            playerSheetOpen.value && yosBottomSheetConfig.progress >= 1f -> 0f
+                                            else -> 1f
                                         }
                                     }
 
@@ -365,7 +400,7 @@ class MainActivity : BaseActivity() {
                                 // 主界面本体
                                 SharedTransitionLayout {
                                     YosWrapper {
-                                        BackHandler(showNowPlaying.value) {
+                                        BackHandler(playerSheetOpen.value) {
                                             // println("isVisible: ${showNowPlaying.value}, nowPageNowPlaying.value: ${nowPageNowPlaying.value}")
                                             if (nowPageNowPlaying.value != Album) {
                                                 nowPageNowPlaying.value =
@@ -373,15 +408,15 @@ class MainActivity : BaseActivity() {
                                             } else {
                                                 scope.launch {
                                                     // scaffoldState.bottomSheetState.partialExpand()
-                                                    offsetY.animateTo(0f, animationSpec = navSpec)
+                                                    minimizePlayer()
                                                 }
                                             }
                                         }
                                     }
 
                                     YosWrapper {
-                                        val animateSpeed = 340
-                                        val animationSpec: FiniteAnimationSpec<IntSize> =
+                                        val animateSpeed = 280
+                                        val animationSpec: FiniteAnimationSpec<IntOffset> =
                                             tween(
                                                 durationMillis = animateSpeed,
                                                 easing = EaseOutQuart
@@ -392,8 +427,8 @@ class MainActivity : BaseActivity() {
                                                 easing = EaseOutQuart
                                             )
                                         AnimatedNavHost(
-                                            modifier = Modifier.then(
-                                                if (SettingsLibrary.BarBlurEffect && !showNowPlaying.value) {
+                                            modifier = Modifier.nestedScroll(glassDock.connection).then(
+                                                if (SettingsLibrary.BarBlurEffect || Build.VERSION.SDK_INT >= 31) {
                                                     Modifier.haze(state = hazeState)
                                                 } else {
                                                     //println("haze 父控件效果关闭")
@@ -403,40 +438,16 @@ class MainActivity : BaseActivity() {
                                             navController = navController,
                                             startDestination = UI.HomePage,
                                             enterTransition = {
-                                                fadeIn(animationSpec = fadeAnimationSpec) + expandHorizontally(
-                                                    animationSpec = animationSpec,
-                                                    clip = false,
-                                                    expandFrom = Alignment.Start
-                                                ) {
-                                                    -it / 2
-                                                }
+                                                fadeIn(animationSpec = fadeAnimationSpec) + slideInHorizontally(animationSpec) { it / 8 }
                                             },
                                             exitTransition = {
-                                                fadeOut(animationSpec = fadeAnimationSpec) + shrinkHorizontally(
-                                                    animationSpec = animationSpec,
-                                                    clip = false,
-                                                    shrinkTowards = Alignment.End
-                                                ) {
-                                                    it / 2
-                                                }
+                                                fadeOut(animationSpec = fadeAnimationSpec) + slideOutHorizontally(animationSpec) { -it / 8 }
                                             },
                                             popEnterTransition = {
-                                                fadeIn(animationSpec = fadeAnimationSpec) + expandHorizontally(
-                                                    animationSpec = animationSpec,
-                                                    clip = false,
-                                                    expandFrom = Alignment.End
-                                                ) {
-                                                    it / 2
-                                                }
+                                                fadeIn(animationSpec = fadeAnimationSpec) + slideInHorizontally(animationSpec) { -it / 8 }
                                             },
                                             popExitTransition = {
-                                                fadeOut(animationSpec = fadeAnimationSpec) + shrinkHorizontally(
-                                                    animationSpec = animationSpec,
-                                                    clip = false,
-                                                    shrinkTowards = Alignment.Start
-                                                ) {
-                                                    -it / 2
-                                                }
+                                                fadeOut(animationSpec = fadeAnimationSpec) + slideOutHorizontally(animationSpec) { it / 8 }
                                             }) {
 
                                             composable(UI.HomePage) {
@@ -448,6 +459,7 @@ class MainActivity : BaseActivity() {
                                                     nowLabel.value = it
                                                 }
                                             }
+                                            composable("MusicStats") { yos.music.player.ui.pages.Stats(navController) }
                                             composable(UI.Library) {
                                                 Library(
                                                     navController
@@ -551,76 +563,22 @@ class MainActivity : BaseActivity() {
                                             .fillMaxSize(),
                                         contentAlignment = Alignment.BottomCenter
                                     ) {
-                                        // 背景
-                                        if (!showNowPlaying.value && SettingsLibrary.BarBlurEffect) {
-                                            Spacer(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .navigationBarsHeight(128.dp)
-                                                    .graphicsLayer {
-                                                        compositingStrategy =
-                                                            CompositingStrategy.Offscreen
-                                                    }
-                                                    .hazeChild(
-                                                        hazeState,
-                                                        HazeMaterials
-                                                            .regular(
-                                                                color
-                                                            )
-                                                            .copy(
-                                                                blurRadius = 48.dp
-                                                            )
-                                                    )
-                                                    .drawWithCache {
-                                                        onDrawWithContent {
-                                                            val colors = listOf(
-                                                                Color.Transparent,
-                                                                color.copy(alpha = 0.3f),
-                                                                color.copy(alpha = 0.6f),
-                                                                color,
-                                                                color,
-                                                                color,
-                                                                color,
-                                                                color
-                                                            )
-
-                                                            drawContent()
-
-                                                            drawRect(
-                                                                brush = Brush.verticalGradient(
-                                                                    colors
-                                                                ),
-                                                                blendMode = BlendMode.DstIn
-                                                            )
-                                                        }
-                                                    }
-                                            )
-                                        } else {
-                                            //println("haze 底栏效果关闭")
-                                            Spacer(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .navigationBarsHeight(128.dp)
-                                                    .background(
-                                                        brush = Brush.verticalGradient(
-                                                            colors = listOf(
-                                                                Color.Transparent,
-                                                                color.copy(alpha = 0.3f),
-                                                                color.copy(alpha = 0.6f),
-                                                                color,
-                                                                color,
-                                                                color,
-                                                                color,
-                                                                color
-                                                            ),
-                                                            startY = 0f,
-                                                            endY = Float.POSITIVE_INFINITY
-                                                        )
-                                                    )
-                                            )
-                                        }
-
                                         BottomNavigator(
+                                            hazeState = hazeState,
+                                            dockState = glassDock,
+                                            opacity = { yosBottomSheetConfig.menuAlpha },
+                                            onExpandPlayer = {
+                                                if (playerSheetOpen.value) return@BottomNavigator
+                                                playerSheetOpen.value = true
+                                                scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                                    artworkMotion.reset()
+                                                    artworkMotion.playerOpen = true
+                                                    offsetY.snapTo(0f)
+                                                    playerSheetOpen.value = true
+                                                    offsetY.animateTo(parentHeight.intValue.toFloat(), animationSpec = navSpec)
+                                                    artworkMotion.settled = true
+                                                }
+                                            },
                                             nowLabel = { nowLabel.value },
                                             onLabelChange = {
                                                 nowLabel.value = it
@@ -629,15 +587,14 @@ class MainActivity : BaseActivity() {
                                                     context.getString(R.string.page_home_title)
                                                 val library =
                                                     context.getString(R.string.page_library_title)
-                                                val stats =
-                                                    context.getString(R.string.page_stats_title)
+                                                val newMusic = "New"
                                                 if (route.value == UI.HomePage) {
                                                     scope.launch {
                                                         pagerState.animateScrollToPage(
                                                             when (it) {
                                                                 home -> 0
-                                                                library -> 1
-                                                                stats -> 2
+                                                                newMusic -> 1
+                                                                library -> 2
                                                                 else -> 0
                                                             }
                                                         )
@@ -647,8 +604,8 @@ class MainActivity : BaseActivity() {
                                                         pagerState.scrollToPage(
                                                             when (it) {
                                                                 home -> 0
-                                                                library -> 1
-                                                                stats -> 2
+                                                                newMusic -> 1
+                                                                library -> 2
                                                                 else -> 0
                                                             }
                                                         )
@@ -662,21 +619,15 @@ class MainActivity : BaseActivity() {
                                             items = listOf(
                                                 NavItem(
                                                     stringResource(id = R.string.page_home_title),
-                                                    R.drawable.flamingo_icon
+                                                    R.drawable.music_note
                                                 ),
+                                                NavItem("New", R.drawable.ic_uitabbar_stats),
                                                 NavItem(
                                                     stringResource(id = R.string.page_library_title),
                                                     R.drawable.ic_uitabbar_library
-                                                ),
-                                                NavItem(
-                                                    stringResource(id = R.string.page_stats_title),
-                                                    R.drawable.ic_uitabbar_stats
                                                 )
                                             ),
-                                            modifier = Modifier
-                                                .onSizeChanged {
-                                                    height.intValue = it.height
-                                                })
+                                            modifier = Modifier)
                                     }
                                 }
                             }
@@ -698,586 +649,95 @@ class MainActivity : BaseActivity() {
                             }
                         }
 
-                        // 播放条&播放界面
-                        YosWrapper {
-                            if (height.intValue == 0) return@YosWrapper
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .onSizeChanged {
-                                        parentHeight.intValue = it.height
-                                    }
-                                    .graphicsLayer {
-                                        //compositingStrategy = CompositingStrategy.Offscreen
-                                        val plus =
-                                            0.07f * yosBottomSheetConfig.progress
-                                        this.scaleX = 0.93f + plus
-                                        this.scaleY = 0.93f + plus
-                                        this.translationY =
-                                            -(height.intValue + 10) * (yosBottomSheetConfig.menuAlpha)
-                                        this.transformOrigin = TransformOrigin(0.5f, 1f)
-                                    },
-                                contentAlignment = Alignment.BottomCenter
-                            ) {
-                                YosWrapper {
-                                    val miniPlayerHeightPx = remember("MainActivity_miniPlayerHeightPx") {
-                                        with(density) {
-                                            miniPlayerHeight.toPx()
-                                        }
-                                    }
-
-                                    val miniPlayerShadow = remember("MainActivity_miniPlayerShadow") {
-                                        with(density) {
-                                            7.5.dp.toPx()
-                                        }
-                                    }
-
-                                    val color = Color.White withNight Color(0xFF1C1C1E)
-
-                                    val dragState = rememberDraggableState { delta ->
-                                        scope.launch {
-                                            offsetY.snapTo(offsetY.value + delta)
-                                        }
-                                    }
-
-                                    /*.graphicsLayer {
-                                        if (yosBottomSheetConfig.barShowCorner) {
-                                            shadowElevation = 7.5.dp.toPx()
-                                            spotShadowColor = Color.Black.copy(alpha = 0.2f)
-
-                                            *//*compositingStrategy =
-                                                        CompositingStrategy.Offscreen*//*
-                                                }
-                                            }*/
-                                    /*.drawWithContent {
-                                        drawContent()
-                                        drawOutline(
-                                            outline = navShape.createOutline(size, layoutDirection, this),
-                                            color = color.copy(alpha = yosBottomSheetConfig.menuAlpha),
-                                            style = Stroke(width = 0.3.dp.toPx())
-                                        )
-                                    }*/
-
-                                    Surface(
-                                        modifier = Modifier.graphicsLayer {
-                                            translationY =
-                                                ((parentHeight.intValue - miniPlayerHeightPx) * (1 - yosBottomSheetConfig.progress))
-
-                                            if (yosBottomSheetConfig.barShowCorner) {
-                                                shape = YosRoundedCornerShape(
-                                                    roundSize = yosBottomSheetConfig.barShapeValue.dp,
-                                                    mSize = Size(
-                                                        width = size.width,
-                                                        height = (miniPlayerHeightPx + (parentHeight.intValue - miniPlayerHeightPx) * yosBottomSheetConfig.progress)
-                                                    )
-                                                )
-                                                shadowElevation = miniPlayerShadow
-                                                spotShadowColor = Color.Black.copy(alpha = 0.2f)
-                                            }
-                                        }
-                                            .graphicsLayer {
-                                                //translationY = ((parentHeight.intValue - miniPlayerHeightPx) * (1 - yosBottomSheetConfig.progress))
-
-                                                if (yosBottomSheetConfig.barShowCorner) {
-                                                    compositingStrategy = CompositingStrategy.Offscreen
-                                                    clip = true
-                                                    shape = YosRoundedCornerShape(
-                                                        roundSize = yosBottomSheetConfig.barShapeValue.dp,
-                                                        mSize = Size(
-                                                            width = size.width,
-                                                            height = (miniPlayerHeightPx + (parentHeight.intValue - miniPlayerHeightPx) * yosBottomSheetConfig.progress)
-                                                        )
-                                                    )
-                                                } else {
-                                                    compositingStrategy = CompositingStrategy.ModulateAlpha
-                                                    clip = false
-                                                }
-                                            }
-                                            .draggable(
-                                                reverseDirection = true,
-                                                orientation = Orientation.Vertical,
-                                                state = dragState,
-                                                onDragStopped = { velocity ->
-                                                    offsetY.updateBounds(
-                                                        0f,
-                                                        parentHeight.intValue.toFloat()
-                                                    )
-                                                    scope.launch {
-                                                        //println("速度：$velocity 高度：${miniPlayerHeight + (parentHeightDp - miniPlayerHeight) * progress}")
-                                                        if (velocity < 0f) {
-                                                            offsetY.animateTo(
-                                                                0f,
-                                                                initialVelocity = velocity
-                                                            )
-                                                        } else {
-                                                            offsetY.animateTo(
-                                                                parentHeight.intValue.toFloat(),
-                                                                initialVelocity = velocity
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            )
-                                            .layout { measurable, constraints ->
-                                                val placeable = measurable.measure(
-                                                    constraints.copy(
-                                                        minHeight = parentHeight.intValue,
-                                                        maxHeight = parentHeight.intValue
-                                                    )
-                                                )
-                                                layout(
-                                                    placeable.width,
-                                                    placeable.height
-                                                ) {
-                                                    placeable.placeRelative(0, 0)
-                                                }
-                                            },
-                                        color = Color.Transparent
-                                    ) {
-                                        val isPlaying =
-                                            rememberSaveable(key = "MainActivity_isPlaying") {
-                                                MediaViewModelObject.isPlaying
-                                            }
-                                        val miniPlayerTrack = MediaController.musicPlaying.value
-                                        val miniPlayerTrackKey =
-                                            miniPlayerTrack?.mediaId ?: miniPlayerTrack?.uri?.toString()
-                                            ?: ""
-                                        val systemMediaControlResolver = remember(context) {
-                                            SystemMediaControlResolver(context)
-                                        }
-                                        val miniPlayerWidth = remember("MainActivity_miniPlayerWidth") {
-                                            mutableIntStateOf(0)
-                                        }
-                                        val miniPlayerHorizontalOffset =
-                                            remember("MainActivity_miniPlayerHorizontalOffset") {
-                                                Animatable(0f)
-                                            }
-                                        val miniPlayerHorizontalActionDirection =
-                                            remember("MainActivity_miniPlayerHorizontalActionDirection") {
-                                                mutableIntStateOf(0)
-                                            }
-                                        val miniPlayerHorizontalState = rememberDraggableState { delta ->
-                                            if (
-                                                yosBottomSheetConfig.menuAlpha != 1f ||
-                                                miniPlayerHorizontalActionDirection.intValue != 0
-                                            ) {
-                                                return@rememberDraggableState
-                                            }
-
-                                            val maxOffset =
-                                                (miniPlayerWidth.intValue * 0.35f).coerceAtLeast(1f)
-
-                                            scope.launch {
-                                                miniPlayerHorizontalOffset.snapTo(
-                                                    (miniPlayerHorizontalOffset.value + delta).coerceIn(
-                                                        -maxOffset,
-                                                        maxOffset
-                                                    )
-                                                )
-                                            }
-                                        }
-
-                                        LaunchedEffect(miniPlayerTrackKey) {
-                                            if (miniPlayerHorizontalActionDirection.intValue == 0) {
-                                                return@LaunchedEffect
-                                            }
-
-                                            val widthPx =
-                                                miniPlayerWidth.intValue.toFloat().coerceAtLeast(1f)
-
-                                            miniPlayerHorizontalOffset.snapTo(
-                                                -miniPlayerHorizontalActionDirection.intValue * widthPx
-                                            )
-                                            miniPlayerHorizontalOffset.animateTo(
-                                                0f,
-                                                animationSpec = tween(
-                                                    durationMillis = 65,
-                                                    easing = EaseOutQuart
-                                                )
-                                            )
-                                            miniPlayerHorizontalActionDirection.intValue = 0
-                                        }
-
-                                        // NowPlaying
-                                        YosWrapper {
-                                            NowPlaying(
-                                                mainViewModel = mainViewModel,
-                                                mediaViewModel = mediaViewModel,
-                                                navController = navController,
-                                                onMinimizeNowPlaying = {
-                                                    nowPageNowPlaying.value = Album
-                                                    offsetY.animateTo(0f, animationSpec = navSpec)
-                                                },
-                                                isPlayingStatusLambda = { isPlaying.value },
-                                                isPlayingOnChanged = {
-                                                    isPlaying.value = it
-                                                },
-                                                nowPageLambda = { nowPageNowPlaying.value },
-                                                showNowPlaying = { showNowPlaying.value },
-                                                showMiniPlayer = { yosBottomSheetConfig.showMenu }
-                                            ) {
-                                                nowPageNowPlaying.value = it
-                                            }
-                                        }
-
-                                        // 迷你播放状态
-                                        YosWrapper {
-                                            //println("变换：菜单透明度 $menuAlpha")
-                                            if (yosBottomSheetConfig.showMenu) {
-                                                YosWrapper {
-                                                    Column(
-                                                        Modifier
-                                                            .fillMaxSize()
-                                                            .graphicsLayer {
-                                                                compositingStrategy =
-                                                                    CompositingStrategy.ModulateAlpha
-                                                                this.alpha =
-                                                                    yosBottomSheetConfig.menuAlpha
-                                                            }
-                                                            .background(color)
-                                                    ) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .height(miniPlayerHeight)
-                                                                .clickable(
-                                                                    interactionSource = remember { MutableInteractionSource() },
-                                                                    indication = null,
-                                                                    onClick = {
-                                                                        scope.launch {
-                                                                            offsetY.animateTo(
-                                                                                parentHeight.intValue.toFloat(),
-                                                                                animationSpec = navSpec
-                                                                            )
-                                                                        }
-                                                                    })
-                                                        ) {
-
-                                                            YosWrapper {
-                                                                val showMiniBarHaze = remember(
-                                                                    "MainActivity_showMiniBarHaze",
-                                                                    yosBottomSheetConfig.menuAlpha
-                                                                ) {
-                                                                    derivedStateOf {
-                                                                        yosBottomSheetConfig.menuAlpha == 1f && SettingsLibrary.BarBlurEffect
-                                                                    }
-                                                                }
-                                                                this@Column.AnimatedVisibility(
-                                                                    visible = showMiniBarHaze.value,
-                                                                    modifier = Modifier
-                                                                        .fillMaxWidth()
-                                                                        .height(
-                                                                            navHeight
-                                                                        ),
-                                                                    enter = fadeIn(tween(100)),
-                                                                    exit = fadeOut(tween(100))
-                                                                ) {
-                                                                    Spacer(
-                                                                        modifier = Modifier
-                                                                            .fillMaxSize()
-                                                                            .hazeChild(
-                                                                                hazeState,
-                                                                                HazeMaterials
-                                                                                    .thick(
-                                                                                       color
-                                                                                    )
-                                                                                    .copy(
-                                                                                        blurRadius = 48.dp
-                                                                                    )
-                                                                            )
-                                                                    )
-                                                                }
-                                                            }
-
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .fillMaxSize()
-                                                                    .onSizeChanged {
-                                                                        miniPlayerWidth.intValue = it.width
-                                                                    }
-                                                                    .draggable(
-                                                                        orientation = Orientation.Horizontal,
-                                                                        state = miniPlayerHorizontalState,
-                                                                        enabled = yosBottomSheetConfig.menuAlpha == 1f,
-                                                                        onDragStopped = { velocity ->
-                                                                            scope.launch {
-                                                                                val widthPx =
-                                                                                    miniPlayerWidth.intValue.toFloat()
-                                                                                        .coerceAtLeast(1f)
-                                                                                val threshold = widthPx * 0.18f
-                                                                                val velocityThreshold = 1400f
-                                                                                val dragOffset =
-                                                                                    miniPlayerHorizontalOffset.value
-                                                                                val shouldTrigger =
-                                                                                    abs(dragOffset) > threshold || abs(
-                                                                                        velocity
-                                                                                    ) > velocityThreshold
-
-                                                                                if (!shouldTrigger || miniPlayerTrack == null) {
-                                                                                    miniPlayerHorizontalOffset.animateTo(
-                                                                                        0f,
-                                                                                        animationSpec = tween(
-                                                                                            durationMillis = 55,
-                                                                                            easing = EaseOutQuart
-                                                                                        )
-                                                                                    )
-                                                                                    return@launch
-                                                                                }
-
-                                                                                val actionDirection =
-                                                                                    if (abs(velocity) > velocityThreshold) {
-                                                                                        if (velocity < 0f) {
-                                                                                            -1
-                                                                                        } else {
-                                                                                            1
-                                                                                        }
-                                                                                    } else if (dragOffset < 0f) {
-                                                                                        -1
-                                                                                    } else {
-                                                                                        1
-                                                                                    }
-                                                                                val mediaControl =
-                                                                                    MediaController.mediaControl
-                                                                                val canSkip =
-                                                                                    if (actionDirection < 0) {
-                                                                                        mediaControl?.hasNextMediaItem() == true
-                                                                                    } else {
-                                                                                        mediaControl?.hasPreviousMediaItem() == true
-                                                                                    }
-
-                                                                                if (!canSkip) {
-                                                                                    miniPlayerHorizontalOffset.animateTo(
-                                                                                        0f,
-                                                                                        animationSpec = tween(
-                                                                                            durationMillis = 55,
-                                                                                            easing = EaseOutQuart
-                                                                                        )
-                                                                                    )
-                                                                                    return@launch
-                                                                                }
-
-                                                                                miniPlayerHorizontalActionDirection.intValue =
-                                                                                    actionDirection
-                                                                                miniPlayerHorizontalOffset.animateTo(
-                                                                                    actionDirection * widthPx,
-                                                                                    animationSpec = tween(
-                                                                                        durationMillis = 45,
-                                                                                        easing = EaseOutQuart
-                                                                                    )
-                                                                                )
-
-                                                                                if (actionDirection < 0) {
-                                                                                    mediaControl?.seekToNextMediaItem()
-                                                                                } else {
-                                                                                    mediaControl?.seekToPreviousMediaItem()
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    )
-                                                                    .graphicsLayer {
-                                                                        clip = true
-                                                                    }
-                                                            ) {
-                                                                Row(
-                                                                    Modifier
-                                                                        .height(miniPlayerHeight)
-                                                                        .fillMaxWidth()
-                                                                        .padding(
-                                                                            horizontal = 8.dp
-                                                                        )
-                                                                ) {
-                                                                    Row(
-                                                                        Modifier
-                                                                            .height(
-                                                                                miniPlayerHeight
-                                                                            )
-                                                                            .weight(1f),
-                                                                        verticalAlignment = Alignment.CenterVertically
-                                                                    ) {
-                                                                        YosWrapper {
-                                                                            ShadowImageWithCache(
-                                                                                dataLambda = { MediaViewModelObject.bitmap.value },
-                                                                                contentDescription = null,
-                                                                                modifier = Modifier
-                                                                                    .size(47.dp),
-                                                                                cornerRadius = 6.dp,
-                                                                                shadowAlpha = 0f,
-                                                                                imageQuality = ImageQuality.LOW
-                                                                            )
-                                                                        }
-                                                                        Box(
-                                                                            Modifier
-                                                                                .weight(1f)
-                                                                                .padding(
-                                                                                    start = 10.dp,
-                                                                                    end = 5.dp
-                                                                                )
-                                                                                .graphicsLayer {
-                                                                                    clip = true
-                                                                                },
-                                                                            contentAlignment = Alignment.CenterStart
-                                                                        ) {
-                                                                            Column(
-                                                                                Modifier.graphicsLayer {
-                                                                                    val widthPx =
-                                                                                        miniPlayerWidth.intValue.toFloat()
-                                                                                            .coerceAtLeast(1f)
-
-                                                                                    translationX =
-                                                                                        miniPlayerHorizontalOffset.value
-                                                                                    alpha =
-                                                                                        1f - (
-                                                                                            abs(
-                                                                                                miniPlayerHorizontalOffset.value
-                                                                                            ) / widthPx
-                                                                                        ).coerceIn(0f, 0.35f)
-                                                                                }
-                                                                            ) {
-                                                                                Text(
-                                                                                    text = miniPlayerTrack?.title
-                                                                                        ?: defaultTitle,
-                                                                                    fontWeight = FontWeight.Medium,
-                                                                                    fontSize = 16.sp,
-                                                                                    lineHeight = 16.sp,
-                                                                                    maxLines = 1,
-                                                                                    overflow = TextOverflow.Ellipsis,
-                                                                                    color = Color.Black withNight Color.White
-                                                                                )
-                                                                                /*Text(
-                                                                     text = musicPlaying.value?.Artist
-                                                                         ?: "未知艺术家",
-                                                                     fontSize = 13.5.sp,
-                                                                     lineHeight = 13.5.sp,
-                                                                     modifier = Modifier.alpha(
-                                                                         0.6f
-                                                                     ),
-                                                                     maxLines = 1,
-                                                                     overflow = TextOverflow.Ellipsis,
-                                                                     color = Color.Black withNight Color.White
-                                                                 )*/
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                    Row(
-                                                                        Modifier
-                                                                            .fillMaxHeight()
-                                                                            .padding(end = 10.dp),
-                                                                        verticalAlignment = Alignment.CenterVertically
-                                                                    ) {
-                                                                        Box(
-                                                                            modifier = Modifier
-                                                                                .size(34.dp)
-                                                                                .clickable(
-                                                                                    interactionSource = remember { MutableInteractionSource() },
-                                                                                    indication = ripple(
-                                                                                        bounded = false
-                                                                                    ),
-                                                                                    onClick = {
-                                                                                        Vibrator.click(
-                                                                                            context
-                                                                                        )
-                                                                                        isPlaying.value =
-                                                                                            !isPlaying.value
-                                                                                        if (isPlaying.value) {
-                                                                                            MediaController.mediaControl?.fadePlay()
-                                                                                        } else {
-                                                                                            MediaController.mediaControl?.fadePause()
-                                                                                        }
-                                                                                    }),
-                                                                            contentAlignment = Alignment.Center
-                                                                        ) {
-                                                                            AnimatedContent(
-                                                                                targetState = isPlaying.value,
-                                                                                transitionSpec = {
-                                                                                    (scaleIn(
-                                                                                        initialScale = 0.3f
-                                                                                    ) + fadeIn()).togetherWith(
-                                                                                        scaleOut(
-                                                                                            targetScale = 0.3f
-                                                                                        ) + fadeOut()
-                                                                                    )
-                                                                                }) {
-                                                                                if (it) {
-                                                                                    Icon(
-                                                                                        painterResource(
-                                                                                            id = R.drawable.ic_nowplaying_mp_pause
-                                                                                        ),
-                                                                                        contentDescription = "Pause",
-                                                                                        modifier = Modifier
-                                                                                            .fillMaxSize(),
-                                                                                        tint = Color.Black withNight Color.White
-                                                                                    )
-                                                                                } else {
-                                                                                    Icon(
-                                                                                        painterResource(
-                                                                                            id = R.drawable.ic_nowplaying_mp_play
-                                                                                        ),
-                                                                                        contentDescription = "Play",
-                                                                                        modifier = Modifier
-                                                                                            .fillMaxSize(),
-                                                                                        tint = Color.Black withNight Color.White
-                                                                                    )
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                        Spacer(
-                                                                            modifier = Modifier.width(
-                                                                                18.dp
-                                                                            )
-                                                                        )
-                                                                        Box(
-                                                                            modifier = Modifier
-                                                                                .size(36.dp)
-                                                                                .clickable(
-                                                                                    interactionSource = remember { MutableInteractionSource() },
-                                                                                    indication = ripple(
-                                                                                        bounded = false
-                                                                                    ),
-                                                                                    onClick = {
-                                                                                        Vibrator.click(
-                                                                                            context
-                                                                                        )
-                                                                                        systemMediaControlResolver.intentSystemMediaDialog()
-                                                                                    }),
-                                                                            contentAlignment = Alignment.Center
-                                                                        ) {
-                                                                            val bluetoothAudioConnected = rememberBluetoothAudioConnected()
-                                                                            AnimatedContent(
-                                                                                targetState = bluetoothAudioConnected,
-                                                                                transitionSpec = {
-                                                                                    (scaleIn(initialScale = 0.3f) + fadeIn()).togetherWith(
-                                                                                        scaleOut(targetScale = 0.3f) + fadeOut()
-                                                                                    )
-                                                                                }
-                                                                            ) { connected ->
-                                                                                Icon(
-                                                                                    painterResource(
-                                                                                        id = if (connected) {
-                                                                                            R.drawable.ic_earphone
-                                                                                        } else {
-                                                                                            R.drawable.ic_nowplaying_airplay
-                                                                                        }
-                                                                                    ),
-                                                                                    contentDescription = "AirPlay",
-                                                                                    modifier = Modifier
-                                                                                        .size(if (connected) 27.dp else 21.5.dp),
-                                                                                    tint = Color.Black withNight Color.White
-                                                                                )
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                        // Measure independently; a closed player is not composed or captured by glass.
+                        Spacer(Modifier.fillMaxSize().onSizeChanged { parentHeight.intValue = it.height })
+                        if (playerSheetOpen.value && parentHeight.intValue > 0) {
+                            val dragState = rememberDraggableState { delta ->
+                                if (!artworkMotion.closing) scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                    offsetY.snapTo((offsetY.value + delta).coerceIn(0f, parentHeight.intValue.toFloat()))
                                 }
                             }
+                            val settlePlayer: (Float) -> Unit = { velocity ->
+                                if (!artworkMotion.closing) scope.launch {
+                                    if (playerSheetTargetOpen(yosBottomSheetConfig.progress, velocity)) {
+                                        offsetY.animateTo(parentHeight.intValue.toFloat(), initialVelocity = velocity, animationSpec = navSpec)
+                                        artworkMotion.settled = true
+                                    } else minimizePlayer(velocity)
+                                }
+                            }
+                            Surface(
+                                modifier = Modifier.fillMaxSize().zIndex(1f)
+                                    .graphicsLayer {
+                                        val p = yosBottomSheetConfig.progress
+                                        if (artworkMotion.closing && artworkMotion.hasFlight) {
+                                            val q = playerDismissVisuals(p, artworkMotion.startProgress).fraction
+                                            translationY = parentHeight.intValue * (1f - artworkMotion.startProgress) + parentHeight.intValue * .12f * (1f - q)
+                                            alpha = playerDismissVisuals(p, artworkMotion.startProgress).controlsAlpha
+                                            scaleX = 1f
+                                            scaleY = 1f
+                                        } else {
+                                            translationY = parentHeight.intValue * (1f - p)
+                                            alpha = 1f
+                                            scaleX = 1f
+                                            scaleY = 1f
+                                        }
+                                    }
+                                    .then(if (nowPageNowPlaying.value == Album) {
+                                        Modifier.playerDismissGesture(!artworkMotion.closing,
+                                            onDelta = { delta ->
+                                                if (!artworkMotion.closing) scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                                    offsetY.snapTo((offsetY.value + delta).coerceIn(0f, parentHeight.intValue.toFloat()))
+                                                }
+                                            }, onRelease = { velocity, dismiss ->
+                                                if (dismiss && !artworkMotion.closing) scope.launch {
+                                                    minimizePlayer(velocity)
+                                                } else settlePlayer(velocity)
+                                            })
+                                    } else if (nowPageNowPlaying.value == yos.music.player.ui.pages.NowPlayingPage.Lyric) {
+                                        // The lyric list owns the entire viewport, including its
+                                        // lower padding. Only the handle may drag this sheet.
+                                        Modifier
+                                    } else Modifier.draggable(
+                                        enabled = !artworkMotion.closing,
+                                        orientation = Orientation.Vertical,
+                                        reverseDirection = true,
+                                        state = dragState,
+                                        onDragStopped = { settlePlayer(it) }
+                                    )),
+                                color = Color.White withNight Color.Black
+                            ) {
+                                val isPlaying = MediaViewModelObject.isPlaying
+                                NowPlaying(
+                                    mainViewModel = mainViewModel,
+                                    mediaViewModel = mediaViewModel,
+                                    navController = navController,
+                                    onMinimizeNowPlaying = {
+                                        // Hosted by the activity: switching from lyrics or an overflow
+                                        // sheet may dispose the button's coroutine scope mid-dismissal.
+                                        scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                            nowPageNowPlaying.value = Album
+                                            minimizePlayer()
+                                        }.join()
+                                    },
+                                    isPlayingStatusLambda = { isPlaying.value },
+                                    isPlayingOnChanged = { isPlaying.value = it },
+                                    nowPageLambda = { nowPageNowPlaying.value },
+                                    showNowPlaying = { showNowPlaying.value },
+                                    showMiniPlayer = { yosBottomSheetConfig.showMenu },
+                                    handleGestureModifier = if (nowPageNowPlaying.value == yos.music.player.ui.pages.NowPlayingPage.Lyric) {
+                                        Modifier.draggable(
+                                            enabled = !artworkMotion.closing,
+                                            orientation = Orientation.Vertical,
+                                            reverseDirection = true,
+                                            state = dragState,
+                                            onDragStopped = { settlePlayer(it) }
+                                        )
+                                    } else Modifier
+                                ) { nowPageNowPlaying.value = it }
+                            }
                         }
+
+                        PlayerArtworkFlight(artworkMotion) { yosBottomSheetConfig.progress }
 
                         // Activity-level host for the playlist
                         // delete-undo snackbar. Mounted here so the
@@ -1297,11 +757,13 @@ class MainActivity : BaseActivity() {
                                 bottomOffset = miniPlayerHeight,
                             )
                         }
+                        StartupBrand(showStartupBrand.value)
                     /*}*/
                 }
+                }
             }
+        }
     }
-}
 
 @Composable
 private fun rememberBluetoothAudioConnected(): Boolean

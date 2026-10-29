@@ -48,17 +48,18 @@ fun ShadowImage(
     cornerRadius: Dp = 10.dp,
     imageQuality: ImageQuality
 ) = YosWrapper {
-    val shape = YosRoundedCornerShape(cornerRadius)
+    val shape = remember(cornerRadius) { YosRoundedCornerShape(cornerRadius) }
+    val context = LocalContext.current
     val url = dataLambda()
     AsyncImage(
-        model = ImageRequest.Builder(LocalContext.current).data(data = url).crossfade(true)
+        model = remember(context, url, imageQuality) { ImageRequest.Builder(context).data(data = url)
             .error(R.drawable.placeholder_music_default_artwork)
             .placeholder(R.drawable.placeholder_music_default_artwork)
             .fallback(R.drawable.placeholder_music_default_artwork)
             .placeholderMemoryCacheKey(url.toString())
             .diskCacheKey(url.toString())
             .allowHardware(true)
-            .crossfade(true)
+            .crossfade(imageQuality != ImageQuality.LOW)
             .apply {
                 if (imageQuality != ImageQuality.RAW) {
                     val size = getSizeFromQuality(imageQuality)
@@ -68,7 +69,7 @@ fun ShadowImage(
                     }
                 }
             }
-            .build(),
+            .build() },
         contentDescription = contentDescription.toString(),
         contentScale = ContentScale.Crop,
         modifier = modifier
@@ -76,7 +77,7 @@ fun ShadowImage(
             .aspectRatio(1f)
             .dropShadow(shape, shadowAlpha, shadowType, shadowOverlay)
             .graphicsLayer {
-                compositingStrategy = CompositingStrategy.Offscreen
+                compositingStrategy = if (imageQuality == ImageQuality.LOW) CompositingStrategy.Auto else CompositingStrategy.Offscreen
                 clip = true
                 this.shape = shape
             }
@@ -96,7 +97,8 @@ fun ShadowImageWithCache(
     imageQuality: ImageQuality,
     overlayContent: (@Composable BoxScope.() -> Unit)? = null
 ) = YosWrapper {
-    val shape = YosRoundedCornerShape(cornerRadius)
+    val shape = remember(cornerRadius) { YosRoundedCornerShape(cornerRadius) }
+    val context = LocalContext.current
     val url = dataLambda()
 
     Box(
@@ -105,20 +107,20 @@ fun ShadowImageWithCache(
             .aspectRatio(1f)
             .dropShadow(shape, shadowAlpha, shadowType, shadowOverlay)
             .graphicsLayer {
-                compositingStrategy = CompositingStrategy.Offscreen
+                compositingStrategy = if (imageQuality == ImageQuality.LOW) CompositingStrategy.Auto else CompositingStrategy.Offscreen
                 clip = true
                 this.shape = shape
             }
     ) {
         AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current).data(data = url).crossfade(true)
+            model = remember(context, url, imageQuality) { ImageRequest.Builder(context).data(data = url)
                 .error(R.drawable.placeholder_music_default_artwork)
                 .placeholder(R.drawable.placeholder_music_default_artwork)
                 .fallback(R.drawable.placeholder_music_default_artwork)
                 .placeholderMemoryCacheKey(url.toString())
                 .memoryCacheKey(url.toString())
                 .allowHardware(true)
-                .crossfade(true)
+                .crossfade(imageQuality != ImageQuality.LOW)
                 .apply {
                     if (imageQuality != ImageQuality.RAW) {
                         val size = getSizeFromQuality(imageQuality)
@@ -131,7 +133,7 @@ fun ShadowImageWithCache(
                         this.size(coil.size.Size.ORIGINAL)
                     }
                 }
-                .build(),
+                .build() },
             contentDescription = contentDescription.toString(),
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()

@@ -7,6 +7,12 @@ import yos.music.player.data.SettingsSaver
 
 @Stable
 object SettingsLibrary {
+    var LyricsProvider by mutableDataSaverStateOf(
+        dataSaverInterface = SettingsSaver,
+        key = "music_lyrics_provider",
+        initialValue = "auto"
+    )
+
 
     @Stable
     private var followedArtistsSaver by mutableDataSaverListStateOf(

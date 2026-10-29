@@ -8,7 +8,9 @@ import yos.music.player.data.objects.MediaViewModelObject
 /**
  * Lrc 歌词文本处理
  */
-class YosLrcFactory(private val formatText: Boolean = true) {
+class YosLrcFactory(private val formatText: Boolean = true, private val publishOtherSide: Boolean = true) {
+    var otherSideForLines: List<Boolean> = emptyList()
+        private set
     /**
      * Lrc 歌词文本处理方法
      * @param lrcText Lrc 格式的文本
@@ -193,8 +195,11 @@ class YosLrcFactory(private val formatText: Boolean = true) {
             }
         }
 
-        MediaViewModelObject.otherSideForLines.clear()
-        MediaViewModelObject.otherSideForLines.addAll(otherSideResult)
+        otherSideForLines = otherSideResult.toList()
+        if (publishOtherSide) {
+            MediaViewModelObject.otherSideForLines.clear()
+            MediaViewModelObject.otherSideForLines.addAll(otherSideResult)
+        }
         //println(MediaViewModelObject.otherSideForLines)
 
         //println(filteredLrcEntries)

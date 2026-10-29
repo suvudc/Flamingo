@@ -1,30 +1,7 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="192"
-    android:viewportHeight="192">
-    <group
-        android:scaleX="0.55"
-        android:scaleY="0.55"
-        android:translateX="43.2"
-        android:translateY="43.2">
-        <path android:pathData="M149,56.5V34.5V32L84,46.5L82.5,116.5L43,125.5V159.38L104,146L105.5,66L149,56.5Z">
-            <aapt:attr name="android:fillColor">
-                <gradient
-                    android:startX="96"
-                    android:startY="32"
-                    android:endX="96"
-                    android:endY="159.5"
-                    android:type="linear">
-                    <item
-                        android:offset="0"
-                        android:color="#FFF54047" />
-                    <item
-                        android:offset="1"
-                        android:color="#FFE64366" />
-                </gradient>
-            </aapt:attr>
-        </path>
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="-18.96" android:translateY="12.485" android:scaleX="0.095" android:scaleY="0.095">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M922,169 C934,167 942,175 942,188 L942,576 C942,611 923,637 887,637 L840,637 C806,637 778,613 778,578 C778,544 800,514 836,514 L887,514 C900,514 910,506 910,492 L910,318 C910,302 900,293 885,297 L706,335 C688,339 676,351 676,368 L676,615 C676,661 651,690 614,690 L576,690 C540,690 511,666 511,630 C511,593 535,568 571,568 L614,568 C635,568 644,557 644,540 L644,254 C644,234 656,223 675,218 Z" />
     </group>
 </vector>

@@ -11,11 +11,14 @@ import androidx.compose.runtime.mutableStateOf
 @Stable
 object MediaViewModelObject {
     val lrcEntries: MutableState<List<List<Pair<Float, String>>>> = mutableStateOf(listOf())
+    val bitChordLines = mutableStateOf<List<yos.music.player.code.lyrics.bitchord.LyricLine>?>(null)
     val otherSideForLines = mutableStateListOf<Boolean>()
     val lyricLineEndTimes = mutableStateListOf<Float>()
     val lyricLineTransliterations = mutableStateListOf<String?>()
     val lyricLineSubtitles = mutableStateListOf<String?>()
     val isTtmlLyrics = mutableStateOf(false)
+    val lyricsDownloadStatus = mutableStateOf("")
+    val lyricsDownloading = mutableStateOf(false)
 
     // var mainLyricLines = mutableStateListOf<AnnotatedString>()
 

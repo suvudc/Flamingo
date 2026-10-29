@@ -29,6 +29,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
+import androidx.media3.session.CacheBitmapLoader
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
@@ -51,6 +52,11 @@ import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
+import yos.music.player.code.lyrics.LyricsDownloads
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -81,6 +87,7 @@ import yos.music.player.data.objects.MediaViewModelObject
 
 @Stable
 object MediaController {
+    var downloadLyrics: (() -> Unit)? = null
     @Volatile
     private var controllerInitializationStarted = false
 
@@ -188,7 +195,7 @@ object MediaController {
         val handler = Handler(Looper.getMainLooper())
         val lyricAPI by lazy { API() }
         var lastLyric = listOf<Pair<Float, String>>()
-        val base64 = Tools.drawableToBase64(getDrawable(R.drawable.flamingo_icon_notification)!!)
+        val base64 = Tools.drawableToBase64(getDrawable(R.drawable.music_notification)!!)
         var statusBarLyricEnabled: Boolean
         var hooked = false
 
@@ -957,6 +964,61 @@ object MediaController {
 }
 
 class YosPlaybackService : MediaSessionService() {
+    private val lyricsScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var lyricsJob: Job? = null
+    private var lyricsUri: String? = null
+
+    private fun requestLyrics(song: YosMediaItem, localPath: String?, refresh: Boolean = false) {
+        val provider = yos.music.player.code.lyrics.LyricsProvider.fromId(SettingsLibrary.LyricsProvider)
+        val identity = (song.uri?.toString() ?: return) + "|" + provider.id
+        if (!refresh && identity == lyricsUri) return
+        lyricsUri = identity
+        lyricsJob?.cancel()
+        // Clear before loading, so a new track cannot briefly display the previous words.
+        applyParsedLyrics(emptyParsedLyrics())
+        MediaViewModelObject.lyricsDownloading.value = true
+        MediaViewModelObject.lyricsDownloadStatus.value = "Finding lyrics…"
+        lyricsJob = lyricsScope.launch {
+            try {
+                val local = withContext(Dispatchers.IO) { loadParsedLyrics(localPath) }
+                ensureActive()
+                if (local.entries.isNotEmpty() && provider in listOf(yos.music.player.code.lyrics.LyricsProvider.Auto, yos.music.player.code.lyrics.LyricsProvider.Local)) {
+                    applyParsedLyrics(local)
+                    if (provider == yos.music.player.code.lyrics.LyricsProvider.Local || yos.music.player.code.lyrics.OnlineLyrics.wordTimed(local)) {
+                        MediaViewModelObject.lyricsDownloadStatus.value = "Local lyrics • available offline"
+                        return@launch
+                    }
+                }
+                if (provider == yos.music.player.code.lyrics.LyricsProvider.Local) {
+                    MediaViewModelObject.lyricsDownloadStatus.value = "No local lyrics for this song"
+                    return@launch
+                }
+                val result = LyricsDownloads.load(this@YosPlaybackService, song, refresh, provider)
+                ensureActive()
+                if (lyricsUri != identity) return@launch
+                if (provider == yos.music.player.code.lyrics.LyricsProvider.Auto && local.entries.isNotEmpty() && (result == null || !yos.music.player.code.lyrics.OnlineLyrics.wordTimed(result.parsed))) {
+                    MediaViewModelObject.lyricsDownloadStatus.value = "Local lyrics • available offline"
+                } else if (result == null) {
+                    MediaViewModelObject.lyricsDownloadStatus.value = "No match. Download / retry"
+                } else {
+                    applyParsedLyrics(result.parsed)
+                    MediaViewModelObject.lyricsDownloadStatus.value =
+                        (if (result.saved) "Saved offline" else "Save failed — tap to retry") + " • " + result.source
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w("MusicLyrics", "Lyrics lookup failed", error)
+                if (lyricsUri == identity) MediaViewModelObject.lyricsDownloadStatus.value = "Download failed — tap to retry"
+            } finally {
+                if (lyricsUri == identity && kotlinx.coroutines.currentCoroutineContext().isActive) {
+                    MediaViewModelObject.lyricsDownloading.value = false
+                }
+            }
+        }
+    }
+
+    private var artworkBitmapLoader: MediaArtworkBitmapLoader? = null
     private val notificationID = 1145
     private val channelID = "YosMediaControllerChannel"
 
@@ -1040,9 +1102,9 @@ class YosPlaybackService : MediaSessionService() {
     /*fun sendLyricTicker(lyric: String) {
         val notification = NotificationCompat.Builder(this, channelID).apply {
             setTicker(lyric)
-            setSmallIcon(R.drawable.flamingo_icon_notification)
+            setSmallIcon(R.drawable.music_notification)
         }.build().also {
-            it.extras.putInt("ticker_icon", R.drawable.flamingo_icon_notification)
+            it.extras.putInt("ticker_icon", R.drawable.music_notification)
             it.extras.putBoolean("ticker_icon_switch", true)
             it.flags = it.flags.or(FLAG_ALWAYS_SHOW_TICKER).or(FLAG_ONLY_UPDATE_TICKER)
         }
@@ -1179,7 +1241,8 @@ class YosPlaybackService : MediaSessionService() {
     }
 
     private fun parseLrcLyrics(lrcContent: String): YosParsedLyricData {
-        val entries = YosLrcFactory().formatLrcEntries(lrcContent)
+        val factory = YosLrcFactory(publishOtherSide = false)
+        val entries = factory.formatLrcEntries(lrcContent)
         val endTimes = entries.mapIndexed { index, line ->
             entries.getOrNull(index + 1)?.firstOrNull()?.first
                 ?: line.lastOrNull()?.first
@@ -1191,7 +1254,7 @@ class YosPlaybackService : MediaSessionService() {
         return YosParsedLyricData(
             entries = entries,
             endTimes = endTimes,
-            otherSideForLines = MediaViewModelObject.otherSideForLines.toList(),
+            otherSideForLines = factory.otherSideForLines,
             transliterations = emptySecondaryText,
             subtitles = emptySecondaryText,
             isTtml = false
@@ -1210,6 +1273,7 @@ class YosPlaybackService : MediaSessionService() {
     }
 
     private fun applyParsedLyrics(parsedLyrics: YosParsedLyricData) {
+        MediaViewModelObject.bitChordLines.value = parsedLyrics.bitChordLines
         MediaViewModelObject.lrcEntries.value = parsedLyrics.entries
         MediaViewModelObject.otherSideForLines.clear()
         MediaViewModelObject.otherSideForLines.addAll(parsedLyrics.otherSideForLines)
@@ -1319,12 +1383,12 @@ class YosPlaybackService : MediaSessionService() {
                             "Track changed uri=$path resolvedPath=$thisPath mediaId=${player.currentMediaItem?.mediaId}"
                         )
 
-                        val parsedLyrics = loadParsedLyrics(thisPath)
-                        applyParsedLyrics(parsedLyrics)
-                        Log.d(
-                            "FlamingoLyrics",
-                            "Loaded lyrics parsedEntries=${parsedLyrics.entries.size} isTtml=${parsedLyrics.isTtml} otherSideCount=${MediaViewModelObject.otherSideForLines.size}"
-                        )
+                        player.currentMediaItem?.toYosMediaItem()?.let { song ->
+                            requestLyrics(song, thisPath)
+                            yos.music.player.code.MediaController.downloadLyrics = {
+                                requestLyrics(song, thisPath, refresh = true)
+                            }
+                        }
 
                         if (thisPath != null) {
                             // MediaViewModelObject.isDolby.value = thisPath.endsWith(".m4a")
@@ -1350,6 +1414,15 @@ class YosPlaybackService : MediaSessionService() {
                 }
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    if (mediaItem?.uri?.toString() != lyricsUri) {
+                        lyricsJob?.cancel()
+                        lyricsUri = null
+                        applyParsedLyrics(emptyParsedLyrics())
+                        MediaViewModelObject.lyricsDownloadStatus.value = ""
+                        MediaViewModelObject.lyricsDownloading.value = false
+                        yos.music.player.code.MediaController.downloadLyrics = null
+                    }
+
                     /*mediaSession?.let { MediaController.sendNotification(it,context) }*/
                     listenHistoryTracker?.onTrackChanged()
                     listenStatsTracker?.onTrackChanged()
@@ -1504,9 +1577,12 @@ class YosPlaybackService : MediaSessionService() {
             }*/
         }
 
+        val artworkLoader = MediaArtworkBitmapLoader(this)
+        artworkBitmapLoader = artworkLoader
         mediaSession =
             MediaSession
                 .Builder(this, forwardingPlayer)
+                .setBitmapLoader(CacheBitmapLoader(artworkLoader))
                 .setSessionActivity(
                     PendingIntent.getActivity(
                         this,
@@ -1527,8 +1603,8 @@ class YosPlaybackService : MediaSessionService() {
         */
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "Flamingo Media Control"
-            val descriptionText = "Flamingo Media Control Notification Channel"
+            val name = "Music Media Control"
+            val descriptionText = "Music Media Control Notification Channel"
             val importance = NotificationManager.IMPORTANCE_NONE
             val channel = NotificationChannel(channelID, name, importance).apply {
                 description = descriptionText
@@ -1559,7 +1635,7 @@ class YosPlaybackService : MediaSessionService() {
             notificationID
         )*/
 
-        notificationProvider.setSmallIcon(R.drawable.flamingo_icon_notification)
+        notificationProvider.setSmallIcon(R.drawable.music_notification)
 
         this.setMediaNotificationProvider(notificationProvider)
 
@@ -1569,6 +1645,8 @@ class YosPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        lyricsScope.cancel()
+        yos.music.player.code.MediaController.downloadLyrics = null
         yos.music.player.code.MediaController.stopStatusBarLyricUpdater()
         listenHistoryTracker?.stop()
         listenHistoryTracker = null
@@ -1579,6 +1657,8 @@ class YosPlaybackService : MediaSessionService() {
             release()
             mediaSession = null
         }
+        artworkBitmapLoader?.close()
+        artworkBitmapLoader = null
         super.onDestroy()
     }
 

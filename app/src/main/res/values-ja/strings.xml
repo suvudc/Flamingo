@@ -25,7 +25,7 @@
     <string name="settings_library_artist_split_hint">Use one separator per line. Default: ,</string>
     <string name="settings_library_artist_split_placeholder">Enter one separator per line</string>
     <string name="settings_library_animated_album_covers">アニメーションアルバムカバー</string>
-    <string name="settings_library_animated_album_covers_desc">曲ディレクトリの anim フォルダにあるローカルアルバム MP4 を再生します。API のダウンロードはアプリのキャッシュに保存されます。</string>
+    <string name="settings_library_animated_album_covers_desc">anim フォルダのローカル MP4 を再生します。オンライン検索を有効にすると、プレーヤーを開いた際に Apple Music、Tidal、コミュニティのカバーを保存します。保存完了後はオフラインで再生でき、削除またはアプリデータ消去まで保持されます。</string>
     <string name="settings_library_animated_album_covers_use_api">API を使用（インターネットが必要）</string>
     <string name="settings_library_animated_album_cover_blacklist">アニメーションカバーのブラックリスト</string>
     <string name="settings_library_animated_album_cover_blacklist_placeholder">1 行に 1 アルバム</string>
@@ -44,8 +44,8 @@
     <string name="settings_extend_statusbarlyric">ステータスバーの歌詞</string>
     <string name="settings_extend_statusbarlyric_desc">Lyric Getter API のステータスバー歌詞を使用します。</string>
     <string name="settings_others">その他</string>
-    <string name="settings_others_about">Flamingo について</string>
-    <string name="settings_others_about_desc">Flamingo について。</string>
+    <string name="settings_others_about">Music について</string>
+    <string name="settings_others_about_desc">Music について。</string>
     <string name="settings_audio_fade_in_out_desc">再生 / 一時停止時に音量をフェードイン / フェードアウトします。</string>
     <string name="tip_no_lyrics">歌詞が準備できていません</string>
     <string name="settings_others_statusbarlyric_basic_switch">全体のスイッチ</string>
@@ -56,8 +56,8 @@
     <string name="settings_others_statusbarlyric_debug_clear_lyric">現在の歌詞をクリア</string>
     <string name="settings_others_statusbarlyric_debug_clear_lyric_desc">現在の歌詞を手動でクリアします。</string>
     <string name="settings_others_statusbarlyric_basic_status">Hook 状態</string>
-    <string name="settings_others_statusbarlyric_basic_status_enabled">Flamingo は Hook 状態です。</string>
-    <string name="settings_others_statusbarlyric_basic_status_disabled">Flamingo は未 Hook 状態です。</string>
+    <string name="settings_others_statusbarlyric_basic_status_enabled">Music は Hook 状態です。</string>
+    <string name="settings_others_statusbarlyric_basic_status_disabled">Music は未 Hook 状態です。</string>
     <string name="tip_scan_finished">スキャン完了、合計 %d 曲。</string>
     <string name="settings_performance">外観</string>
     <string name="settings_audio_exoplayer_decode_hardware_audio_track_playback_params">ハードウェアレベルの音声速度調整</string>
